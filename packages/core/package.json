@@ -1,8 +1,17 @@
 {
   "name": "unreal-rc",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Typed client for Unreal Engine Remote Control over WebSocket or HTTP",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peculiarnewbie/unreal-rc.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/peculiarnewbie/unreal-rc/issues"
+  },
+  "homepage": "https://github.com/peculiarnewbie/unreal-rc#readme",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -19,7 +28,7 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pack:check": "npm pack --dry-run",

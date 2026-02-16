@@ -4,7 +4,7 @@ Monorepo for Unreal Engine Remote Control tooling.
 
 ## Packages
 
-- `packages/core` - publishable runtime client package (`unreal-rc`)
+- `packages/core` - runtime client package (`unreal-rc`)
 - `packages/codegen` - planned source parser/type generator
 - `packages/explorer` - planned local GUI app
 - `packages/www` - planned docs/homepage
