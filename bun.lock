@@ -1,0 +1,44 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "unreal-rc",
+      "devDependencies": {
+        "typescript": "^5.9.2",
+      },
+    },
+    "packages/codegen": {
+      "name": "@unreal-rc/codegen",
+      "version": "0.0.0",
+    },
+    "packages/core": {
+      "name": "unreal-rc",
+      "version": "0.1.0",
+      "dependencies": {
+        "zod": "^4.0.11",
+      },
+    },
+    "packages/explorer": {
+      "name": "@unreal-rc/explorer",
+      "version": "0.0.0",
+    },
+    "packages/www": {
+      "name": "@unreal-rc/www",
+      "version": "0.0.0",
+    },
+  },
+  "packages": {
+    "@unreal-rc/codegen": ["@unreal-rc/codegen@workspace:packages/codegen"],
+
+    "@unreal-rc/explorer": ["@unreal-rc/explorer@workspace:packages/explorer"],
+
+    "@unreal-rc/www": ["@unreal-rc/www@workspace:packages/www"],
+
+    "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+
+    "unreal-rc": ["unreal-rc@workspace:packages/core"],
+
+    "zod": ["zod@4.3.6", "", {}, "sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg=="],
+  }
+}

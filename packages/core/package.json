@@ -1,0 +1,37 @@
+{
+  "name": "unreal-rc",
+  "version": "0.1.0",
+  "description": "Typed client for Unreal Engine Remote Control over WebSocket or HTTP",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pack:check": "npm pack --dry-run",
+    "prepublishOnly": "bun run clean && bun run typecheck && bun run build"
+  },
+  "dependencies": {
+    "zod": "^4.0.11"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

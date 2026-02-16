@@ -1,0 +1,17 @@
+{
+  "name": "unreal-rc-monorepo",
+  "private": true,
+  "packageManager": "bun@1.2.21",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "bun run --cwd packages/core build",
+    "typecheck": "bun run --cwd packages/core typecheck",
+    "clean": "bun run --cwd packages/core clean",
+    "pack:core": "bun run --cwd packages/core pack:check"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}
