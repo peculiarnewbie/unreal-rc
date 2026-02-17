@@ -193,6 +193,141 @@ Clean barrel file:
 
 ---
 
+## Testing Strategy (Bun + Unreal Sandbox E2E)
+
+### Goals
+
+- Keep feedback loops fast for contributors
+- Validate transport/protocol behavior deterministically
+- Validate real Unreal Remote Control behavior against a known project
+
+### Test Layers
+
+1. **Unit tests** (default, fastest)
+   - Focus: pure helpers, request builders, schema parse/validation, error mapping, timeout utilities
+   - No network and no Unreal dependency
+
+2. **Integration tests with fake RC server** (default, fast)
+   - Focus: transport contract behavior for HTTP/WS, retries, reconnect behavior, request ID correlation, malformed payload handling
+   - Use an in-process mock server for deterministic protocol assertions
+
+3. **E2E tests with Unreal sandbox project** (opt-in, slower)
+   - Focus: real `/remote/*` endpoint behavior, object path resolution, function calls, property updates, event timing, real error payloads
+   - Runs only when explicitly enabled (for local validation and CI manual/nightly runs)
+
+### Test File Layout (in `packages/core/src`)
+
+- `*.test.ts` for unit/integration (always runs in `bun test`)
+- `*.e2e.test.ts` for Unreal-backed E2E
+
+Proposed structure:
+
+```text
+packages/core/src/
+  __tests__/
+    unit/
+      helpers.test.ts
+      schemas.test.ts
+      client-validation.test.ts
+    integration/
+      http-transport.test.ts
+      ws-transport.test.ts
+      client-mock-server.test.ts
+    e2e/
+      setup.e2e.ts
+      smoke.e2e.test.ts
+      property-roundtrip.e2e.test.ts
+      function-call.e2e.test.ts
+      error-shapes.e2e.test.ts
+```
+
+### E2E Gating and Runtime Contract
+
+- E2E tests must early-skip unless `UNREAL_E2E=1`
+- Recommended env vars:
+  - `UNREAL_E2E_HOST` (default `127.0.0.1`)
+  - `UNREAL_E2E_HTTP_PORT` (default `30010`)
+  - `UNREAL_E2E_WS_PORT` (default `30020`)
+  - `UNREAL_E2E_MAP` (default sandbox map)
+- Add a shared helper (`setup.e2e.ts`) that:
+  - reads env vars,
+  - checks endpoint reachability,
+  - provides a canonical fixture object path,
+  - exposes `beforeAll` hooks that fail fast with actionable messages.
+
+### Sandbox Unreal Project Recommendation
+
+Create a dedicated Unreal project (for example `UnrealRCSandbox`) that is stable, deterministic, and version-pinned.
+
+- Enable required plugins (Remote Control and any dependencies)
+- Include one test map with fixture actors only
+- Keep names/object paths static and documented
+- Add explicit reset entry point (`ResetFixtures`) callable over RC
+- Avoid editor state assumptions and non-deterministic world setup
+
+### Minimal Fixture Matrix (Phase 1)
+
+1. **BP_RC_TestActor** (single actor placed in map)
+   - Properties:
+     - `Counter` (`int`)
+     - `Scalar` (`float`)
+     - `Label` (`string`)
+     - `LocationLike` (`vector-like struct`)
+   - Functions:
+     - `ResetFixtures()` -> resets all properties to defaults
+     - `IncrementCounter(Delta: int)` -> returns new counter
+     - `EchoLabel(InLabel: string)` -> returns same string
+     - `SetScalarClamped(Value: float)` -> deterministic clamp behavior
+
+2. **BP_RC_EventProbe** (optional in phase 1, required in phase 2)
+   - Property mutation path used to validate `/remote/object/event` behavior
+
+3. **Known asset fixture**
+   - One static mesh or data asset under fixed package path for `search/assets` assertions
+
+### E2E Assertion Matrix (Phase 1 -> Phase 2)
+
+- **Phase 1 (must-have)**
+  - RC connectivity smoke (`info` endpoint)
+  - `getProperty` + `setProperty` roundtrip on primitive and struct-like value
+  - `call` with args and return value
+  - typed error behavior for missing object/property/function
+
+- **Phase 2 (next)**
+  - batch mixed operations with stable order assertions
+  - transaction flags on property/function calls
+  - event endpoint timing semantics
+  - reconnect/disconnect behavior under real editor restarts
+
+### Bun Scripts and Execution Plan
+
+At root/package level, keep commands explicit and opt-in for E2E:
+
+- `bun test` -> unit + integration only
+- `UNREAL_E2E=1 bun test packages/core/src/__tests__/e2e/*.e2e.test.ts`
+
+Suggested script names when wiring into `package.json` later:
+
+- `test` -> default test suite (no Unreal dependency)
+- `test:e2e` -> Unreal sandbox suite (requires env + running editor/server)
+- `test:all` -> `test` then `test:e2e` (for local/full validation)
+
+### CI Strategy
+
+- PR CI (default): run typecheck, build, unit, integration
+- Nightly or manual/self-hosted CI: run E2E against installed Unreal + sandbox project
+- Publish/release gate: require default suite; include E2E on release candidates when possible
+
+### Incremental Rollout Plan
+
+1. Add unit tests for helpers/schemas first
+2. Add integration tests with mock HTTP/WS server
+3. Add E2E harness with one smoke test + one property roundtrip
+4. Add fixture functions and expand assertion matrix endpoint-by-endpoint
+5. Add CI jobs for optional/nightly E2E execution
+
+---
+
 ## Cleanup
 
 - Remove `luxon` and `@types/luxon` (not needed)
