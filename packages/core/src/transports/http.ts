@@ -1,6 +1,7 @@
 import type { HttpVerb } from "../types.js";
 import {
   TransportRequestError,
+  type TransportResponse,
   type Transport,
   type TransportRequestOptions
 } from "../transport.js";
@@ -17,8 +18,11 @@ export interface HttpTransportOptions {
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 30010;
 const DEFAULT_TIMEOUT_MS = 15_000;
+const TIMEOUT_ABORT_REASON = "timeout";
+const DISPOSE_ABORT_REASON = "dispose";
 
 export class HttpTransport implements Transport {
+  readonly transport = "http";
   private readonly baseUrl: string;
   private readonly requestTimeoutMs: number;
   private readonly headers: Record<string, string>;
@@ -37,7 +41,7 @@ export class HttpTransport implements Transport {
     url: string,
     body?: unknown,
     options?: TransportRequestOptions
-  ): Promise<unknown> {
+  ): Promise<TransportResponse> {
     const controller = new AbortController();
     const timeoutMs = options?.timeoutMs ?? this.requestTimeoutMs;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -46,7 +50,7 @@ export class HttpTransport implements Transport {
 
     if (timeoutMs > 0) {
       timer = setTimeout(() => {
-        controller.abort();
+        controller.abort(TIMEOUT_ABORT_REASON);
       }, timeoutMs);
     }
 
@@ -75,26 +79,55 @@ export class HttpTransport implements Transport {
       }
 
       const response = await fetch(targetUrl, requestInit);
-      const payload = await parsePayload(response);
+      const payload = await parsePayload(response, {
+        verb,
+        url
+      });
 
       if (!response.ok) {
         throw new TransportRequestError(`HTTP request failed with status ${response.status}`, {
+          kind: "http_status",
+          transport: this.transport,
+          verb,
+          url,
           statusCode: response.status,
           details: payload
         });
       }
 
-      return payload;
+      return {
+        body: payload,
+        statusCode: response.status
+      };
     } catch (error) {
       if (error instanceof TransportRequestError) {
         throw error;
       }
+
       if (controller.signal.aborted) {
-        throw new TransportRequestError(`HTTP request timed out after ${timeoutMs}ms`, {
-          cause: error
-        });
+        const abortedByTimeout = controller.signal.reason === TIMEOUT_ABORT_REASON;
+
+        throw new TransportRequestError(
+          abortedByTimeout
+            ? `HTTP request timed out after ${timeoutMs}ms`
+            : "HTTP request was aborted",
+          {
+            cause: error,
+            kind: abortedByTimeout ? "timeout" : "disconnect",
+            transport: this.transport,
+            verb,
+            url
+          }
+        );
       }
-      throw new TransportRequestError("HTTP request failed", { cause: error });
+
+      throw new TransportRequestError("HTTP request failed", {
+        cause: error,
+        kind: "connect",
+        transport: this.transport,
+        verb,
+        url
+      });
     } finally {
       if (timer) {
         clearTimeout(timer);
@@ -105,13 +138,16 @@ export class HttpTransport implements Transport {
 
   dispose(): void {
     for (const controller of this.controllers) {
-      controller.abort();
+      controller.abort(DISPOSE_ABORT_REASON);
     }
     this.controllers.clear();
   }
 }
 
-const parsePayload = async (response: Response): Promise<unknown> => {
+const parsePayload = async (
+  response: Response,
+  request: { verb: HttpVerb; url: string }
+): Promise<unknown> => {
   const raw = await response.arrayBuffer();
   if (raw.byteLength === 0) {
     return undefined;
@@ -122,7 +158,18 @@ const parsePayload = async (response: Response): Promise<unknown> => {
 
   if (normalized.includes("application/json")) {
     const text = new TextDecoder().decode(raw);
-    return JSON.parse(text);
+    try {
+      return JSON.parse(text);
+    } catch (error) {
+      throw new TransportRequestError("Failed to decode HTTP response body", {
+        cause: error,
+        kind: "decode",
+        transport: "http",
+        verb: request.verb,
+        url: request.url,
+        statusCode: response.status
+      });
+    }
   }
 
   if (normalized.startsWith("text/") || normalized.includes("xml") || normalized.includes("javascript")) {

@@ -1,4 +1,9 @@
-import type { ConnectableTransport, TransportRequestOptions } from "../transport.js";
+import type {
+  ConnectableTransport,
+  TransportResponse,
+  TransportRequestErrorKind,
+  TransportRequestOptions
+} from "../transport.js";
 import { TransportRequestError } from "../transport.js";
 import type { HttpVerb } from "../types.js";
 
@@ -24,7 +29,7 @@ type OutboundRequest = {
   url: string;
   body: unknown;
   timeoutMs: number;
-  resolve: (value: unknown) => void;
+  resolve: (value: TransportResponse) => void;
   reject: (reason: unknown) => void;
   timer?: ReturnType<typeof setTimeout>;
 };
@@ -40,6 +45,7 @@ const DEFAULT_RECONNECT_BACKOFF_FACTOR = 2;
 const DEFAULT_MAX_QUEUE_SIZE = 500;
 
 export class WebSocketTransport implements ConnectableTransport {
+  readonly transport = "ws";
   private readonly url: string;
   private readonly connectTimeoutMs: number;
   private readonly requestTimeoutMs: number;
@@ -86,7 +92,10 @@ export class WebSocketTransport implements ConnectableTransport {
 
   async connect(): Promise<void> {
     if (this.disposed) {
-      throw new TransportRequestError("Cannot connect a disposed transport");
+      throw new TransportRequestError("Cannot connect a disposed transport", {
+        kind: "disconnect",
+        transport: this.transport
+      });
     }
     if (this.connectedState) {
       return;
@@ -115,7 +124,12 @@ export class WebSocketTransport implements ConnectableTransport {
         finalize(() => {
           socket.close();
           this.scheduleReconnect();
-          reject(new TransportRequestError("WebSocket connect timed out"));
+          reject(
+            new TransportRequestError(`WebSocket connect timed out after ${this.connectTimeoutMs}ms`, {
+              kind: "timeout",
+              transport: this.transport
+            })
+          );
         });
       }, this.connectTimeoutMs);
 
@@ -133,7 +147,12 @@ export class WebSocketTransport implements ConnectableTransport {
       const onCloseBeforeOpen = (): void => {
         finalize(() => {
           this.scheduleReconnect();
-          reject(new TransportRequestError("WebSocket closed during connect"));
+          reject(
+            new TransportRequestError("WebSocket closed during connect", {
+              kind: "connect",
+              transport: this.transport
+            })
+          );
         });
       };
 
@@ -141,7 +160,12 @@ export class WebSocketTransport implements ConnectableTransport {
         finalize(() => {
           socket.close();
           this.scheduleReconnect();
-          reject(new TransportRequestError("WebSocket error during connect"));
+          reject(
+            new TransportRequestError("WebSocket error during connect", {
+              kind: "connect",
+              transport: this.transport
+            })
+          );
         });
       };
 
@@ -160,11 +184,11 @@ export class WebSocketTransport implements ConnectableTransport {
     url: string,
     body?: unknown,
     options?: TransportRequestOptions
-  ): Promise<unknown> {
+  ): Promise<TransportResponse> {
     const timeoutMs = options?.timeoutMs ?? this.requestTimeoutMs;
     const requestId = this.nextRequestId++;
 
-    return new Promise<unknown>((resolve, reject) => {
+    return new Promise<TransportResponse>((resolve, reject) => {
       const outbound: OutboundRequest = {
         requestId,
         verb,
@@ -181,16 +205,16 @@ export class WebSocketTransport implements ConnectableTransport {
       }
 
       if (this.disconnectedBehavior === "reject") {
-        reject(new TransportRequestError("WebSocket is disconnected"));
+        reject(this.createRequestError("WebSocket is disconnected", outbound, "disconnect"));
         return;
       }
 
       if (this.queuedRequests.length >= this.maxQueueSize) {
-        reject(
-          new TransportRequestError(
-            `WebSocket queue limit reached (${this.maxQueueSize}); request rejected`
-          )
-        );
+        reject(this.createRequestError(
+          `WebSocket queue limit reached (${this.maxQueueSize}); request rejected`,
+          outbound,
+          "disconnect"
+        ));
         return;
       }
 
@@ -285,20 +309,37 @@ export class WebSocketTransport implements ConnectableTransport {
       typeof responseCodeValue === "number" ? responseCodeValue : Number(responseCodeValue);
 
     if (Number.isFinite(responseCode) && responseCode >= 200 && responseCode < 300) {
-      pending.resolve(payload.ResponseBody);
+      pending.resolve({
+        body: payload.ResponseBody,
+        statusCode: responseCode,
+        requestId
+      });
       return;
     }
 
     const errorOptions = Number.isFinite(responseCode)
-      ? { statusCode: responseCode, details: payload.ResponseBody }
-      : { details: payload.ResponseBody };
+      ? {
+          kind: "remote_status" as const,
+          statusCode: responseCode,
+          details: payload.ResponseBody
+        }
+      : {
+          kind: "unknown" as const,
+          details: payload.ResponseBody
+        };
 
     pending.reject(
       new TransportRequestError(
         Number.isFinite(responseCode)
           ? `Remote request failed with status ${responseCode}`
           : "Remote request failed",
-        errorOptions
+        {
+          ...errorOptions,
+          transport: this.transport,
+          verb: pending.verb,
+          url: pending.url,
+          requestId: pending.requestId
+        }
       )
     );
   };
@@ -325,7 +366,7 @@ export class WebSocketTransport implements ConnectableTransport {
 
   private sendRequest(request: OutboundRequest): void {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      request.reject(new TransportRequestError("WebSocket is not connected"));
+      request.reject(this.createRequestError("WebSocket is not connected", request, "disconnect"));
       return;
     }
 
@@ -353,15 +394,26 @@ export class WebSocketTransport implements ConnectableTransport {
     try {
       this.socket.send(JSON.stringify(envelope));
     } catch (error) {
-      request.reject(new TransportRequestError("Failed to send WebSocket request", { cause: error }));
+      request.reject(
+        new TransportRequestError("Failed to send WebSocket request", {
+          cause: error,
+          kind: "unknown",
+          transport: this.transport,
+          verb: request.verb,
+          url: request.url,
+          requestId: request.requestId
+        })
+      );
       return;
     }
 
     request.timer = setTimeout(() => {
       this.pendingRequests.delete(request.requestId);
-      request.reject(
-        new TransportRequestError(`WebSocket request timed out after ${request.timeoutMs}ms`)
-      );
+      request.reject(this.createRequestError(
+        `WebSocket request timed out after ${request.timeoutMs}ms`,
+        request,
+        "timeout"
+      ));
     }, request.timeoutMs);
 
     this.pendingRequests.set(request.requestId, request);
@@ -431,7 +483,7 @@ export class WebSocketTransport implements ConnectableTransport {
       if (request.timer) {
         clearTimeout(request.timer);
       }
-      request.reject(new TransportRequestError(message));
+      request.reject(this.createRequestError(message, request, "disconnect"));
     }
     this.pendingRequests.clear();
   }
@@ -439,7 +491,25 @@ export class WebSocketTransport implements ConnectableTransport {
   private rejectQueuedRequests(message: string): void {
     while (this.queuedRequests.length > 0) {
       const request = this.queuedRequests.shift();
-      request?.reject(new TransportRequestError(message));
+      if (request) {
+        request.reject(this.createRequestError(message, request, "disconnect"));
+      }
     }
+  }
+
+  private createRequestError(
+    message: string,
+    request: Pick<OutboundRequest, "requestId" | "verb" | "url">,
+    kind: TransportRequestErrorKind,
+    details?: unknown
+  ): TransportRequestError {
+    return new TransportRequestError(message, {
+      kind,
+      details,
+      transport: this.transport,
+      verb: request.verb,
+      url: request.url,
+      requestId: request.requestId
+    });
   }
 }

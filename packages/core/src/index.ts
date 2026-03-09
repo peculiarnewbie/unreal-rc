@@ -1,11 +1,27 @@
-export { BatchBuilder, UnrealRC } from "./client.js";
+export {
+  BatchBuilder,
+  UnrealRC,
+  buildBatchRequest,
+  buildCallRequest,
+  buildDescribeRequest,
+  buildPropertyRequest
+} from "./client.js";
 export type {
   BatchOptions,
   BatchResult,
+  BuildCallRequestOptions,
+  BuildPropertyRequestOptions,
   CallOptions,
   DescribeOptions,
+  ErrorHookContext,
   EventOptions,
   GetPropertyOptions,
+  PayloadRedactionContext,
+  RequestHookContext,
+  ResponseHookContext,
+  RetryContext,
+  RetryOptions,
+  RetryPolicy,
   SearchAssetsOptions,
   SetPropertyOptions,
   ThumbnailOptions,
@@ -25,10 +41,14 @@ export {
 
 export {
   isConnectableTransport,
+  toTransportRequestError,
   TransportRequestError,
   type ConnectableTransport,
   type Transport,
-  type TransportRequestOptions
+  type TransportRequestErrorKind,
+  type TransportRequestId,
+  type TransportRequestOptions,
+  type TransportResponse
 } from "./transport.js";
 
 export { HttpTransport, type HttpTransportOptions } from "./transports/http.js";
