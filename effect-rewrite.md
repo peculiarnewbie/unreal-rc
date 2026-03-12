@@ -38,7 +38,7 @@ packages/core/src/
 ## Key Design Decisions
 
 ### 1. Schemas → Effect Schema
-All 21 Zod schemas become `Schema.Struct` definitions. Request schemas stay strict (no extra keys). Response schemas stay open (extra keys pass through). Types extracted via `Schema.Type<>` and re-exported from `public/types.ts` with zero Effect dependency.
+All 21 Zod schemas become `Schema.Struct` definitions using `Schema` from the `effect` package (bundled in v4). Request schemas stay strict (no extra keys). Response schemas stay open (extra keys pass through). Types extracted via `Schema.Type<>` and re-exported from `public/types.ts` with zero Effect dependency.
 
 ### 2. Errors — tagged internal, plain public
 Internal: 6 `Data.TaggedError` subclasses (`TimeoutError`, `ConnectError`, `DisconnectError`, `HttpStatusError`, `RemoteStatusError`, `DecodeError`) with discriminated union `TransportError`.
@@ -115,8 +115,7 @@ Replaces 70 LOC manual while loop. `defaultShouldRetry` pattern-matches on `_tag
 
 ```diff
 - "zod": "^4.0.11"
-+ "effect": "^3.x"    // latest stable — note: "Effect v4" is the ecosystem version, npm package is effect@3.x
-+ "@effect/schema": "^0.x"   // or bundled in effect — verify at install time
++ "effect": "^4.0.0-beta"    // Effect v4 beta — Schema is bundled in the main package
 ```
 
 Dev deps unchanged (bun, typescript).
@@ -131,7 +130,7 @@ The public API shape stays the same:
 - All type exports preserved (`ObjectCallRequest`, etc.)
 - `TransportRequestError` with `.kind` field
 - Helper functions unchanged
-- Schema exports change from Zod to Effect Schema (breaking but user is sole consumer)
+- Schema exports change from Zod to Effect v4 Schema (breaking but user is sole consumer)
 
 ---
 
