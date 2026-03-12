@@ -8,7 +8,7 @@ import {
   rotator,
   transform,
   vector
-} from "../src/helpers.js";
+} from "../src/index.js";
 
 describe("helpers", () => {
   test("builds normalized object paths", () => {

@@ -10,7 +10,7 @@ import {
   type InfoResponse,
   type RequestHookContext,
   type ResponseHookContext
-} from "../../src/client.js";
+} from "../../src/index.js";
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_HTTP_PORT = 30010;
@@ -933,6 +933,51 @@ const normalizeVersion = (value: string | undefined): string | undefined => {
 const normalizePath = (value: string): string => {
   return value.replace(/\\/g, "/").toLowerCase();
 };
+
+// ---------------------------------------------------------------------------
+// Shared fixture singleton (reference-counted)
+// ---------------------------------------------------------------------------
+
+let sharedHandle: LaunchFixtureHandle | undefined;
+let sharedRefCount = 0;
+let sharedBootPromise: Promise<void> | undefined;
+let cleanupRegistered = false;
+
+const registerProcessCleanup = (): void => {
+  if (cleanupRegistered) {
+    return;
+  }
+  cleanupRegistered = true;
+
+  process.on("beforeExit", async () => {
+    if (sharedHandle) {
+      const handle = sharedHandle;
+      sharedHandle = undefined;
+      sharedBootPromise = undefined;
+      sharedRefCount = 0;
+      await handle.stop();
+    }
+  });
+};
+
+export const acquireFixture = async (): Promise<LaunchFixtureHandle> => {
+  sharedRefCount += 1;
+
+  if (!sharedHandle) {
+    sharedHandle = launchFixtureProject();
+    sharedBootPromise = waitForRemoteControlHttp(sharedHandle).then(() => undefined);
+    registerProcessCleanup();
+  }
+
+  await sharedBootPromise;
+  return sharedHandle;
+};
+
+export const releaseFixture = async (): Promise<void> => {
+  sharedRefCount -= 1;
+};
+
+// ---------------------------------------------------------------------------
 
 const buildEditorNotFoundMessage = (engineAssociation: string | undefined): string => {
   const expected = engineAssociation

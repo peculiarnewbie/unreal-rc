@@ -1,28 +1,32 @@
 import { describe, expect, test } from "bun:test";
+import { Schema } from "effect";
 import {
   BatchRequestItemSchema,
   ObjectCallRequestSchema,
   ObjectCallResponseSchema,
   ObjectPropertyRequestSchema,
   SearchAssetsRequestSchema
-} from "../src/types.js";
+} from "../src/index.js";
+
+const decode = <S extends Schema.Schema.Any>(schema: S) =>
+  Schema.decodeUnknownSync(schema);
 
 describe("types schemas", () => {
   test("enforces strict object call request shape", () => {
     expect(() =>
-      ObjectCallRequestSchema.parse({
+      decode(ObjectCallRequestSchema)({
         objectPath: "/Game/Maps/Main.Main:Actor",
         functionName: "DoThing",
         extra: true
-      })
+      }, { onExcessProperty: "error" })
     ).toThrow();
   });
 
   test("allows passthrough keys for search assets request", () => {
-    const parsed = SearchAssetsRequestSchema.parse({
+    const parsed = decode(SearchAssetsRequestSchema)({
       query: "Chair",
       vendorExtension: "ok"
-    });
+    }, { onExcessProperty: "preserve" });
 
     expect(parsed.query).toBe("Chair");
     expect((parsed as Record<string, unknown>).vendorExtension).toBe("ok");
@@ -30,7 +34,7 @@ describe("types schemas", () => {
 
   test("validates batch request ids", () => {
     expect(() =>
-      BatchRequestItemSchema.parse({
+      decode(BatchRequestItemSchema)({
         RequestId: -1,
         URL: "/remote/info",
         Verb: "GET"
@@ -38,7 +42,7 @@ describe("types schemas", () => {
     ).toThrow();
 
     expect(() =>
-      BatchRequestItemSchema.parse({
+      decode(BatchRequestItemSchema)({
         RequestId: 1.5,
         URL: "/remote/info",
         Verb: "GET"
@@ -48,7 +52,7 @@ describe("types schemas", () => {
 
   test("requires non-empty object path for property requests", () => {
     expect(() =>
-      ObjectPropertyRequestSchema.parse({
+      decode(ObjectPropertyRequestSchema)({
         objectPath: "",
         propertyName: "Counter"
       })
@@ -56,7 +60,10 @@ describe("types schemas", () => {
   });
 
   test("allows passthrough fields for object call responses", () => {
-    const parsed = ObjectCallResponseSchema.parse({ ReturnValue: 1, Custom: true });
+    const parsed = decode(ObjectCallResponseSchema)(
+      { ReturnValue: 1, Custom: true },
+      { onExcessProperty: "preserve" }
+    );
     expect(parsed.ReturnValue).toBe(1);
     expect((parsed as Record<string, unknown>).Custom).toBe(true);
   });

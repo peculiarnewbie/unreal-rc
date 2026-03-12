@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
 import {
+  acquireFixture,
+  releaseFixture,
   getBootTimeoutMs,
-  launchFixtureProject,
   waitForRemoteControlHttp
 } from "./setup.js";
 
@@ -10,7 +11,7 @@ const launchHttpPortTest = process.env.UNREAL_E2E === "1" ? test : test.skip;
 launchHttpPortTest(
   "launches the fixture project and exposes the Remote Control HTTP endpoint",
   async () => {
-    const handle = launchFixtureProject();
+    const handle = await acquireFixture();
 
     try {
       const httpStatus = await waitForRemoteControlHttp(handle);
@@ -23,7 +24,7 @@ launchHttpPortTest(
         httpRoutes.some((route) => route.Path === "/remote/info" || route.Path === "/remote/object/call")
       ).toBe(true);
     } finally {
-      await handle.stop();
+      await releaseFixture();
     }
   },
   getBootTimeoutMs() + 30_000

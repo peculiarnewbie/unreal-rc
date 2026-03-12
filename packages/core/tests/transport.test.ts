@@ -1,26 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import {
-  TransportRequestError,
-  isConnectableTransport,
-  toTransportRequestError,
-  type ConnectableTransport
-} from "../src/transport.js";
+import { TransportRequestError, toTransportRequestError } from "../src/index.js";
 
-class ConnectableStub implements ConnectableTransport {
-  connected = false;
-
-  async connect(): Promise<void> {
-    this.connected = true;
-  }
-
-  async request(): Promise<unknown> {
-    return {};
-  }
-
-  dispose(): void {}
-}
-
-describe("transport helpers", () => {
+describe("TransportRequestError", () => {
   test("creates transport request errors with metadata", () => {
     const cause = new Error("boom");
     const error = new TransportRequestError("failed", {
@@ -59,16 +40,5 @@ describe("transport helpers", () => {
     expect(error.verb).toBe("GET");
     expect(error.url).toBe("/remote/info");
     expect(error.transport).toBe("ws");
-  });
-
-  test("detects connectable transport shape", () => {
-    const connectable = new ConnectableStub();
-    const plain = {
-      request: async (): Promise<unknown> => ({}),
-      dispose: (): void => {}
-    };
-
-    expect(isConnectableTransport(connectable)).toBe(true);
-    expect(isConnectableTransport(plain)).toBe(false);
   });
 });

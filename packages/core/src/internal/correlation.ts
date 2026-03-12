@@ -1,0 +1,82 @@
+import { ServiceMap, Deferred, Effect, HashMap, Layer, Ref } from "effect";
+import type { TransportResponse } from "./transport.js";
+import type { TransportError } from "./errors.js";
+
+export interface PendingRequest {
+  readonly requestId: number;
+  readonly deferred: Deferred.Deferred<TransportResponse, TransportError>;
+  readonly verb: string;
+  readonly url: string;
+}
+
+export interface PendingRequestsService {
+  readonly nextId: Effect.Effect<number>;
+  readonly get: (requestId: number) => Effect.Effect<PendingRequest | undefined>;
+  readonly add: (
+    requestId: number,
+    verb: string,
+    url: string
+  ) => Effect.Effect<Deferred.Deferred<TransportResponse, TransportError>>;
+  readonly resolve: (requestId: number, response: TransportResponse) => Effect.Effect<void>;
+  readonly reject: (requestId: number, error: TransportError) => Effect.Effect<void>;
+  readonly rejectAll: (error: TransportError) => Effect.Effect<void>;
+}
+
+export class PendingRequests extends ServiceMap.Service<
+  PendingRequests,
+  PendingRequestsService
+>()("PendingRequests") {}
+
+export const PendingRequestsLive: Layer.Layer<PendingRequests> = Layer.effect(PendingRequests)(
+  Effect.gen(function* () {
+    const counter = yield* Ref.make(1);
+    const pending = yield* Ref.make(HashMap.empty<number, PendingRequest>());
+
+    return {
+      nextId: Ref.getAndUpdate(counter, (n) => n + 1),
+
+      get: (requestId: number) =>
+        Effect.gen(function* () {
+          const map = yield* Ref.get(pending);
+          const entry = HashMap.get(map, requestId);
+          return entry._tag === "Some" ? entry.value : undefined;
+        }),
+
+      add: (requestId: number, verb: string, url: string) =>
+        Effect.gen(function* () {
+          const deferred = yield* Deferred.make<TransportResponse, TransportError>();
+          yield* Ref.update(pending, HashMap.set(requestId, { requestId, deferred, verb, url }));
+          return deferred;
+        }),
+
+      resolve: (requestId: number, response: TransportResponse) =>
+        Effect.gen(function* () {
+          const map = yield* Ref.get(pending);
+          const entry = HashMap.get(map, requestId);
+          if (entry._tag === "Some") {
+            yield* Ref.update(pending, HashMap.remove(requestId));
+            yield* Deferred.succeed(entry.value.deferred, response);
+          }
+        }),
+
+      reject: (requestId: number, error: TransportError) =>
+        Effect.gen(function* () {
+          const map = yield* Ref.get(pending);
+          const entry = HashMap.get(map, requestId);
+          if (entry._tag === "Some") {
+            yield* Ref.update(pending, HashMap.remove(requestId));
+            yield* Deferred.fail(entry.value.deferred, error);
+          }
+        }),
+
+      rejectAll: (error: TransportError) =>
+        Effect.gen(function* () {
+          const map = yield* Ref.get(pending);
+          yield* Ref.set(pending, HashMap.empty());
+          for (const [, entry] of map) {
+            yield* Deferred.fail(entry.deferred, error);
+          }
+        })
+    };
+  })
+);

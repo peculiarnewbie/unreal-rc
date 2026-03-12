@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:dev.epicgames.com)"
+      "WebFetch(domain:dev.epicgames.com)",
+      "Bash(cd packages/core && bun add effect 2>&1 | tail -5)",
+      "Bash(bun add:*)",
+      "Bash(bun run:*)"
     ]
   }
 }

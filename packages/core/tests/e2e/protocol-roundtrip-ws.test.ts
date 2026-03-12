@@ -1,10 +1,11 @@
 import { expect, test } from "bun:test";
 import type { CallOptions, GetPropertyOptions, SetPropertyOptions } from "../../src/index.js";
 import {
+  acquireFixture,
+  releaseFixture,
   createProtocolClients,
   formatE2eFailure,
   getBootTimeoutMs,
-  launchFixtureProject,
   resolveFixtureContract,
   resolveLaunchOptions,
   waitForRemoteControlHttp,
@@ -16,7 +17,7 @@ const wsRoundtripTest = process.env.UNREAL_E2E === "1" ? test : test.skip;
 wsRoundtripTest(
   "reads and mutates the fixture actor over WebSocket",
   async () => {
-    const handle = launchFixtureProject();
+    const handle = await acquireFixture();
     const launchOptions = resolveLaunchOptions();
     const clients = createProtocolClients(launchOptions);
     const contract = resolveFixtureContract();
@@ -99,7 +100,7 @@ wsRoundtripTest(
       } catch {}
 
       clients.dispose();
-      await handle.stop();
+      await releaseFixture();
     }
   },
   getBootTimeoutMs() + 60_000
