@@ -1,6 +1,7 @@
 {
   "name": "unreal-rc-monorepo",
   "private": true,
+  "type": "module",
   "packageManager": "bun@1.2.21",
   "workspaces": [
     "packages/*"
@@ -9,8 +10,12 @@
     "build": "bun run --cwd packages/core build",
     "typecheck": "bun run --cwd packages/core typecheck",
     "test": "bun run --cwd packages/core test",
+    "test:e2e": "node scripts/test-unreal-e2e.ts",
+    "test:all": "bun run test && bun run test:e2e",
     "clean": "bun run --cwd packages/core clean",
-    "pack:core": "bun run --cwd packages/core pack:check"
+    "pack:core": "bun run --cwd packages/core pack:check",
+    "fixture:init": "node scripts/unreal-fixture.ts init",
+    "fixture:status": "node scripts/unreal-fixture.ts status"
   },
   "devDependencies": {
     "@types/bun": "^1.3.9",

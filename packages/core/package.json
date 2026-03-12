@@ -32,6 +32,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "bun test tests",
+    "test:e2e": "node ../../scripts/test-unreal-e2e.ts",
+    "test:all": "bun run test && bun run test:e2e",
     "pack:check": "npm pack --dry-run",
     "prepublishOnly": "bun run clean && bun run typecheck && bun run build"
   },
