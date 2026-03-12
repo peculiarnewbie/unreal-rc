@@ -133,6 +133,41 @@ const initDefaultFixtureSubmodule = (): void => {
   );
 };
 
+const updateDefaultFixtureSubmodule = (): void => {
+  const fixture = resolveFixture();
+
+  if (fixture.source === "env") {
+    console.log(
+      "UNREAL_FIXTURE_DIR is set. Skipping submodule update because a custom fixture path is in use."
+    );
+    return;
+  }
+
+  if (!fixture.submoduleConfigured) {
+    throw new Error(
+      [
+        `No submodule is configured at "${fixture.defaultFixtureRelativeDir}" yet.`,
+        `Add it with: git submodule add <fixture-repo-url> ${fixture.defaultFixtureRelativeDir}`
+      ].join(" ")
+    );
+  }
+
+  execFileSync(
+    "git",
+    ["submodule", "update", "--init", "--remote", "--recursive", "--", fixture.defaultFixtureRelativeDir],
+    {
+      cwd: ROOT_DIR,
+      stdio: "inherit"
+    }
+  );
+
+  console.log("");
+  console.log(`Updated ${fixture.defaultFixtureRelativeDir}.`);
+  console.log(`Stage and commit the new submodule pointer in the parent repo:`);
+  console.log(`  git add ${fixture.defaultFixtureRelativeDir}`);
+  console.log(`  git commit -m "Update Unreal fixture"`);
+};
+
 const command = process.argv[2] ?? "status";
 
 if (process.argv[1] === __filename) {
@@ -140,10 +175,13 @@ if (process.argv[1] === __filename) {
     if (command === "init") {
       initDefaultFixtureSubmodule();
       printStatus();
+    } else if (command === "update") {
+      updateDefaultFixtureSubmodule();
+      printStatus();
     } else if (command === "status") {
       printStatus();
     } else {
-      throw new Error(`Unknown command "${command}". Expected "status" or "init".`);
+      throw new Error(`Unknown command "${command}". Expected "status", "init", or "update".`);
     }
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

@@ -21,7 +21,7 @@ The launch smoke test starts the fixture `.uproject`, then polls both protocol e
 The launcher opens the fixture project with the test map as a command-line argument:
 
 ```bash
-UnrealEditor <Project>.uproject /Game/Maps/RemoteControlE2E.umap
+UnrealEditor <Project>.uproject /Game/Maps/RemoteControlE2E
 ```
 
 The protocol roundtrip test then:
@@ -79,7 +79,7 @@ Fixture contract env vars:
 
 ```bash
 UNREAL_E2E_MAP_PATH=/Game/Maps/RemoteControlE2E
-UNREAL_E2E_LAUNCH_MAP_PATH=/Game/Maps/RemoteControlE2E.umap
+UNREAL_E2E_LAUNCH_MAP_PATH=/Game/Maps/RemoteControlE2E
 UNREAL_E2E_WORLD_NAME=RemoteControlE2E
 UNREAL_E2E_ACTOR_NAME=E2EFixtureActor
 UNREAL_E2E_OBJECT_PATH=/Game/Maps/RemoteControlE2E.RemoteControlE2E:PersistentLevel.E2EFixtureActor

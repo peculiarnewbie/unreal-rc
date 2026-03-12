@@ -36,6 +36,7 @@ Commands:
 ```bash
 bun run fixture:status
 bun run fixture:init
+bun run fixture:update
 bun run test:e2e
 ```
 

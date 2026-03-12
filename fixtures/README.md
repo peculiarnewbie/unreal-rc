@@ -28,9 +28,7 @@ bun run fixture:init
 To update the pinned fixture revision later:
 
 ```bash
-cd fixtures/unreal-project
-git pull origin main
-cd ../..
+bun run fixture:update
 git add fixtures/unreal-project
 git commit -m "Update Unreal fixture"
 ```

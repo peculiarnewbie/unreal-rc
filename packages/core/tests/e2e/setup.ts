@@ -109,7 +109,7 @@ export const resolveFixtureContract = (): FixtureProtocolContract => {
 
   return {
     mapPath,
-    launchMapPath: readStringEnv("UNREAL_E2E_LAUNCH_MAP_PATH", `${mapPath}.umap`),
+    launchMapPath: readStringEnv("UNREAL_E2E_LAUNCH_MAP_PATH", mapPath),
     worldName,
     actorName,
     objectPath: readStringEnv(
