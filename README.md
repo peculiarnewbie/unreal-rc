@@ -1,15 +1,59 @@
-# unreal-rc monorepo
+# unreal-rc
 
-Monorepo for Unreal Engine Remote Control tooling.
+A typed TypeScript client for [Unreal Engine's Remote Control](https://dev.epicgames.com/documentation/en-us/unreal-engine/remote-control-for-unreal-engine) plugin. Control a running Unreal Editor or game instance over WebSocket or HTTP.
 
 ## Packages
 
-- `packages/core` - runtime client package (`unreal-rc`)
-- `packages/codegen` - planned source parser/type generator
-- `packages/explorer` - planned local GUI app
-- `packages/www` - planned docs/homepage
+| Package | Description | Status |
+|---------|-------------|--------|
+| [`packages/core`](./packages/core) | Runtime client library (published as `unreal-rc`) | Available |
+| `packages/codegen` | Source parser / type generator | Planned |
+| `packages/explorer` | Local GUI app for exploring RC endpoints | Planned |
+| `packages/www` | Documentation site | Planned |
 
-## Quick start
+## Prerequisites
+
+- **Unreal Engine 5.x** with the **Remote Control** plugin enabled
+- **Node.js >= 18**, **Bun**, or any runtime with `fetch` and `WebSocket` support
+
+The Remote Control plugin exposes two endpoints on localhost:
+
+| Protocol | Default Port | Use Case |
+|----------|-------------|----------|
+| HTTP | `30010` | Simple request/response |
+| WebSocket | `30020` | Persistent connection with auto-reconnect |
+
+## Quick Start
+
+```bash
+npm install unreal-rc
+```
+
+```ts
+import { UnrealRC } from "unreal-rc";
+
+const ue = new UnrealRC(); // defaults to WebSocket on 127.0.0.1:30020
+
+// Call a function on an actor
+await ue.call(
+  "/Game/Maps/Main.Main:PersistentLevel.MyActor",
+  "SetActorHiddenInGame",
+  { bNewHidden: false }
+);
+
+// Read a property
+const location = await ue.getProperty(
+  "/Game/Maps/Main.Main:PersistentLevel.MyActor",
+  "RelativeLocation"
+);
+
+// Clean up
+await ue.dispose();
+```
+
+See the [core package README](./packages/core/README.md) for full API documentation.
+
+## Development
 
 ```bash
 bun install
@@ -17,56 +61,48 @@ bun run typecheck
 bun run build
 ```
 
-## Working on core
+### Working on core
 
 ```bash
 bun run --cwd packages/core typecheck
 bun run --cwd packages/core build
+bun run --cwd packages/core test
 ```
 
-## Unreal Fixture
+### E2E Tests
 
-Unreal-backed tests use this fixture precedence:
+E2E tests launch a real Unreal Editor instance and exercise the full protocol.
 
-1. `UNREAL_FIXTURE_DIR`
-2. default path `fixtures/unreal-project` (intended for a git submodule)
+**Unreal fixture** precedence:
 
-Commands:
+1. `UNREAL_FIXTURE_DIR` environment variable
+2. Default path `fixtures/unreal-project` (intended for a git submodule)
 
-```bash
-bun run fixture:status
-bun run fixture:init
-bun run fixture:update
-bun run test:e2e
-```
-
-`bun run test:e2e` now includes a launch smoke test that boots the fixture `.uproject`, waits for Unreal Remote Control HTTP at `/remote/info`, and waits for the WebSocket endpoint to accept a connection.
-
-Editor discovery order:
+**Editor discovery** order:
 
 1. `UNREAL_EDITOR_BIN`
 2. `UNREAL_ENGINE_ROOT`
-3. editor on `PATH`
-4. common install roots
-
-Examples:
+3. Editor on `PATH`
+4. Common install roots (e.g. `C:\Program Files\Epic Games\UE_5.7`)
 
 ```bash
-UNREAL_ENGINE_ROOT="/Users/Shared/Epic Games/UE_5.7" \
-UNREAL_EDITOR_ARGS_JSON='["-stdout","-FullStdOutLogOutput"]' \
+# Fixture management
+bun run fixture:status
+bun run fixture:init
+bun run fixture:update
+
+# Run E2E tests
 bun run test:e2e
-```
 
-```bash
-UNREAL_ENGINE_ROOT="$HOME/UnrealEngine" bun run test:e2e
-```
+# With explicit engine root
+UNREAL_ENGINE_ROOT="/Users/Shared/Epic Games/UE_5.7" bun run test:e2e
 
-On Windows, a Launcher install like `C:\Program Files\Epic Games\UE_5.7` is one of the paths the helper now scans automatically.
-
-If you already have a local Unreal fixture project elsewhere:
-
-```bash
+# With a custom fixture directory
 UNREAL_FIXTURE_DIR=/abs/path/to/project bun run test:e2e
 ```
 
-More detail is in `fixtures/README.md`.
+More detail is in [`fixtures/README.md`](./fixtures/README.md).
+
+## License
+
+MIT
