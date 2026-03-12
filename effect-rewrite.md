@@ -131,7 +131,7 @@ The public API shape stays the same:
 - All type exports preserved (`ObjectCallRequest`, etc.)
 - `TransportRequestError` with `.kind` field
 - Helper functions unchanged
-- Schema exports change from Zod to Effect Schema (breaking but user is sole consumer)
+- Schema exports change from Zod to Effect v4 Schema (breaking but user is sole consumer)
 
 ---
 
