@@ -1,6 +1,7 @@
 import { Effect, Schema } from "effect";
 import type { TransportError } from "../internal/errors.js";
 import { DecodeError } from "../internal/errors.js";
+import { Transport } from "../internal/transport.js";
 import { makeRuntime, sendRequest, type FullLayer, type RuntimeConfig } from "../internal/runtime.js";
 import { withRetry } from "../internal/retry.js";
 import {
@@ -262,6 +263,9 @@ export class UnrealRC {
   }
 
   async dispose(): Promise<void> {
+    await this.runtime.runPromise(
+      Transport.use((transport) => transport.dispose)
+    ).catch(() => {});
     await this.runtime.dispose();
   }
 
@@ -274,7 +278,7 @@ export class UnrealRC {
     responseSchema: Schema.Schema<T>,
     options?: RequestOptionsBase
   ): Promise<T> {
-    const retryConfig = this.resolveRetryConfig(options?.retry);
+    const retryConfig = this.resolveRetryConfig(options?.retry, verb as HttpVerb, url);
     const validateResponses = this.validateResponses;
     const startTime = Date.now();
 
@@ -344,13 +348,16 @@ export class UnrealRC {
     if (!this._onRequest) return;
     const redactedBody = this.redact(body, "request", verb, url);
     try {
-      this._onRequest({
+      const result = this._onRequest({
         transport: this.transportName,
         verb,
         url,
         body: redactedBody,
         attempt: 1
       });
+      if (result && typeof (result as Promise<void>).catch === "function") {
+        (result as Promise<void>).catch(() => {});
+      }
     } catch { /* ignore hook errors */ }
   }
 
@@ -364,7 +371,7 @@ export class UnrealRC {
     if (!this._onResponse) return;
     const durationMs = Date.now() - startTime;
     try {
-      this._onResponse({
+      const hookResult = this._onResponse({
         transport: this.transportName,
         verb,
         url,
@@ -375,6 +382,9 @@ export class UnrealRC {
         statusCode: result.statusCode,
         requestId: result.requestId
       });
+      if (hookResult && typeof (hookResult as Promise<void>).catch === "function") {
+        (hookResult as Promise<void>).catch(() => {});
+      }
     } catch { /* ignore hook errors */ }
   }
 
@@ -390,7 +400,7 @@ export class UnrealRC {
     const publicError =
       error instanceof TransportRequestError ? error : new TransportRequestError("Unknown error");
     try {
-      this._onError({
+      const hookResult = this._onError({
         transport: this.transportName,
         verb,
         url,
@@ -402,6 +412,9 @@ export class UnrealRC {
         statusCode: publicError.statusCode,
         requestId: publicError.requestId
       });
+      if (hookResult && typeof (hookResult as Promise<void>).catch === "function") {
+        (hookResult as Promise<void>).catch(() => {});
+      }
     } catch { /* ignore hook errors */ }
   }
 
@@ -430,7 +443,9 @@ export class UnrealRC {
   }
 
   private resolveRetryConfig(
-    retry: RetryOptions | undefined
+    retry: RetryOptions | undefined,
+    verb: HttpVerb,
+    url: string
   ): { maxAttempts: number; baseDelayMs: number; shouldRetry?: (error: TransportError) => boolean } | false {
     if (retry === false) return false;
 
@@ -439,9 +454,32 @@ export class UnrealRC {
 
     const policy = source === true ? {} : source;
     const maxAttempts = Math.max(1, Math.floor(policy.maxAttempts ?? DEFAULT_RETRY_MAX_ATTEMPTS));
-    const baseDelayMs = typeof policy.delayMs === "number" ? policy.delayMs : 100;
+    const rawDelay = policy.delayMs;
+    const baseDelayMs = typeof rawDelay === "number"
+      ? rawDelay
+      : typeof rawDelay === "function"
+        ? rawDelay({ attempt: 1, maxAttempts, error: new TransportRequestError("init"), transport: this.transportName, verb, url })
+        : 100;
 
-    return { maxAttempts, baseDelayMs };
+    const userShouldRetry = policy.shouldRetry;
+    const transportName = this.transportName;
+    const shouldRetry = userShouldRetry
+      ? (error: TransportError) => {
+          const publicError = toPublicError(error);
+          return userShouldRetry({
+            attempt: 1,
+            maxAttempts,
+            error: publicError,
+            transport: transportName,
+            verb,
+            url,
+            statusCode: publicError.statusCode,
+            requestId: publicError.requestId
+          });
+        }
+      : undefined;
+
+    return { maxAttempts, baseDelayMs, ...(shouldRetry ? { shouldRetry } : {}) };
   }
 }
 

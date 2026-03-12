@@ -315,15 +315,28 @@ export const WebSocketTransportLive = (
               drainQueue(socket)
             ],
             { concurrency: "unbounded" }
-          ).pipe(Effect.catchIf(() => true, () => Effect.void));
-
-          yield* Ref.set(connectedRef, false);
-          yield* Ref.set(socketRef, undefined);
-          yield* pending.rejectAll(
-            new DisconnectError({
-              message: "WebSocket disconnected",
-              transport: "ws"
-            })
+          ).pipe(
+            Effect.catchIf(
+              () => true,
+              () =>
+                // Clean up state after disconnect, then re-fail so Effect.retry can reconnect
+                Effect.gen(function* () {
+                  yield* Ref.set(connectedRef, false);
+                  yield* Ref.set(socketRef, undefined);
+                  yield* pending.rejectAll(
+                    new DisconnectError({
+                      message: "WebSocket disconnected",
+                      transport: "ws"
+                    })
+                  );
+                  return yield* Effect.fail(
+                    new DisconnectError({
+                      message: "WebSocket disconnected",
+                      transport: "ws"
+                    })
+                  );
+                })
+            )
           );
         });
 
