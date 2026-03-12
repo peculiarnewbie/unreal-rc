@@ -63,6 +63,7 @@ const DEFAULT_WS_PORT = 30020;
 const DEFAULT_HTTP_PORT = 30010;
 const DEFAULT_RETRY_MAX_ATTEMPTS = 3;
 const RETRYABLE_HTTP_STATUS_CODES = new Set([502, 503, 504]);
+const OptionalObjectPropertyResponseSchema = ObjectPropertyResponseSchema.optional();
 
 export interface PayloadRedactionContext {
   phase: HookPhase;
@@ -345,13 +346,15 @@ export class UnrealRC {
     parameters?: Record<string, unknown>,
     options?: CallOptions
   ): Promise<ObjectCallResponse> {
-    return this.send(
+    const response = await this.send(
       "PUT",
       "/remote/object/call",
       buildCallRequest(objectPath, functionName, parameters, options),
       ObjectCallResponseSchema,
       options
     );
+
+    return normalizeCallResponse(response);
   }
 
   async getProperty<T = unknown>(
@@ -396,7 +399,7 @@ export class UnrealRC {
     propertyValue: unknown,
     options?: SetPropertyOptions
   ): Promise<ObjectPropertyResponse> {
-    return this.send(
+    const response = await this.send(
       "PUT",
       "/remote/object/property",
       buildPropertyRequest(objectPath, {
@@ -405,9 +408,11 @@ export class UnrealRC {
         ...(options?.access !== undefined ? { access: options.access } : {}),
         ...(options?.transaction !== undefined ? { transaction: options.transaction } : {})
       }),
-      ObjectPropertyResponseSchema,
+      OptionalObjectPropertyResponseSchema,
       options
     );
+
+    return response ?? {};
   }
 
   async describe(objectPath: string, options?: DescribeOptions): Promise<ObjectDescribeResponse> {
@@ -771,6 +776,27 @@ const isSinglePropertyValueMap = (value: unknown, propertyName: string): value i
 
   const keys = Object.keys(value);
   return keys.length === 1 && keys[0] === propertyName;
+};
+
+const normalizeCallResponse = (response: ObjectCallResponse): ObjectCallResponse => {
+  if (response.ReturnValue !== undefined) {
+    return response;
+  }
+
+  const keys = Object.keys(response);
+  if (keys.length !== 1) {
+    return response;
+  }
+
+  const returnKey = keys[0];
+  if (returnKey === undefined) {
+    return response;
+  }
+
+  return {
+    ...response,
+    ReturnValue: response[returnKey]
+  };
 };
 
 const defaultRetryDelayMs = (attempt: number): number => {

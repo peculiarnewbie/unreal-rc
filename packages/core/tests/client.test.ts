@@ -226,6 +226,20 @@ describe("UnrealRC client", () => {
     });
   });
 
+  test("normalizes single-output call responses onto ReturnValue", async () => {
+    const transport = new MockTransport([{ body: { OutCounter: 123 }, statusCode: 200 }]);
+    const client = new UnrealRC({ transport });
+
+    const response = await client.call("/Game/Maps/Main.Main:Actor", "IncrementCounter", {
+      Delta: 5
+    });
+
+    expect(response).toEqual({
+      OutCounter: 123,
+      ReturnValue: 123
+    });
+  });
+
   test("parses property responses using property name then ReturnValue", async () => {
     const transport = new MockTransport([
       { body: { Counter: 9 }, statusCode: 200 },
@@ -242,13 +256,15 @@ describe("UnrealRC client", () => {
 
   test("defaults setProperty access and supports transaction access", async () => {
     const transport = new MockTransport([
-      { body: { ReturnValue: null }, statusCode: 200 },
+      { body: undefined, statusCode: 200 },
       { body: { ReturnValue: null }, statusCode: 200 }
     ]);
     const client = new UnrealRC({ transport });
 
-    await client.setProperty("/Game/Maps/Main.Main:Actor", "Counter", 1);
-    await client.setProperty("/Game/Maps/Main.Main:Actor", "Counter", 2, { transaction: true });
+    await expect(client.setProperty("/Game/Maps/Main.Main:Actor", "Counter", 1)).resolves.toEqual({});
+    await expect(client.setProperty("/Game/Maps/Main.Main:Actor", "Counter", 2, { transaction: true })).resolves.toEqual({
+      ReturnValue: null
+    });
 
     expect(transport.requests[0]).toEqual({
       verb: "PUT",
