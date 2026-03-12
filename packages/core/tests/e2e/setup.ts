@@ -8,6 +8,7 @@ import { UnrealRC, type InfoResponse } from "../../src/client.js";
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_HTTP_PORT = 30010;
+const DEFAULT_WS_PORT = 30020;
 const DEFAULT_BOOT_TIMEOUT_MS = 180_000;
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 2_000;
@@ -15,12 +16,19 @@ const PROCESS_STOP_TIMEOUT_MS = 5_000;
 const LOG_LINE_LIMIT = 200;
 const UNIX_EDITOR_NAMES = ["UnrealEditor", "UE4Editor"];
 const WINDOWS_EDITOR_NAMES = ["UnrealEditor.exe", "UE4Editor.exe"];
+const DEFAULT_FIXTURE_MAP_NAME = "RemoteControlE2E";
+const DEFAULT_FIXTURE_MAP_PATH = `/Game/Maps/${DEFAULT_FIXTURE_MAP_NAME}`;
+const DEFAULT_FIXTURE_ACTOR_NAME = "E2EFixtureActor";
+const DEFAULT_FIXTURE_PROPERTY_NAME = "Counter";
+const DEFAULT_FIXTURE_FUNCTION_NAME = "AddToCounter";
+const DEFAULT_FIXTURE_FUNCTION_ARGUMENT_NAME = "Delta";
 
 export interface UnrealLaunchOptions {
   editorBin: string;
   editorArgs: string[];
   host: string;
   httpPort: number;
+  wsPort: number;
   bootTimeoutMs: number;
   pollIntervalMs: number;
   requestTimeoutMs: number;
@@ -43,6 +51,30 @@ export interface RemoteControlHttpStatus {
   info: InfoResponse;
 }
 
+export interface RemoteControlWsStatus extends RemoteControlHttpStatus {}
+
+export interface FixtureProtocolContract {
+  mapPath: string;
+  launchMapPath: string;
+  worldName: string;
+  actorName: string;
+  objectPath: string;
+  propertyName: string;
+  baselineValue: number;
+  httpWriteValue: number;
+  httpCallDelta: number;
+  wsWriteValue: number;
+  wsCallDelta: number;
+  functionName: string;
+  functionArgumentName: string;
+}
+
+export interface ProtocolClients {
+  http: UnrealRC;
+  ws: UnrealRC;
+  dispose(): void;
+}
+
 interface UnrealEditorInstall {
   editorBin: string;
   source: "env" | "engine_root" | "path" | "common";
@@ -63,22 +95,79 @@ export const resolveLaunchOptions = (): UnrealLaunchOptions => {
     editorArgs: readArgsEnv("UNREAL_EDITOR_ARGS_JSON"),
     host: process.env.UNREAL_E2E_HOST?.trim() || DEFAULT_HOST,
     httpPort: readNumberEnv("UNREAL_E2E_HTTP_PORT", DEFAULT_HTTP_PORT),
+    wsPort: readNumberEnv("UNREAL_E2E_WS_PORT", DEFAULT_WS_PORT),
     bootTimeoutMs: getBootTimeoutMs(),
     pollIntervalMs: readNumberEnv("UNREAL_E2E_POLL_INTERVAL_MS", DEFAULT_POLL_INTERVAL_MS),
     requestTimeoutMs: readNumberEnv("UNREAL_E2E_REQUEST_TIMEOUT_MS", DEFAULT_REQUEST_TIMEOUT_MS)
   };
 };
 
+export const resolveFixtureContract = (): FixtureProtocolContract => {
+  const mapPath = readStringEnv("UNREAL_E2E_MAP_PATH", DEFAULT_FIXTURE_MAP_PATH);
+  const worldName = readStringEnv("UNREAL_E2E_WORLD_NAME", DEFAULT_FIXTURE_MAP_NAME);
+  const actorName = readStringEnv("UNREAL_E2E_ACTOR_NAME", DEFAULT_FIXTURE_ACTOR_NAME);
+
+  return {
+    mapPath,
+    launchMapPath: readStringEnv("UNREAL_E2E_LAUNCH_MAP_PATH", `${mapPath}.umap`),
+    worldName,
+    actorName,
+    objectPath: readStringEnv(
+      "UNREAL_E2E_OBJECT_PATH",
+      `${mapPath}.${worldName}:PersistentLevel.${actorName}`
+    ),
+    propertyName: readStringEnv("UNREAL_E2E_PROPERTY_NAME", DEFAULT_FIXTURE_PROPERTY_NAME),
+    baselineValue: readIntegerEnv("UNREAL_E2E_BASELINE_VALUE", 0),
+    httpWriteValue: readIntegerEnv("UNREAL_E2E_HTTP_WRITE_VALUE", 10),
+    httpCallDelta: readIntegerEnv("UNREAL_E2E_HTTP_CALL_DELTA", 5),
+    wsWriteValue: readIntegerEnv("UNREAL_E2E_WS_WRITE_VALUE", 20),
+    wsCallDelta: readIntegerEnv("UNREAL_E2E_WS_CALL_DELTA", 7),
+    functionName: readStringEnv("UNREAL_E2E_FUNCTION_NAME", DEFAULT_FIXTURE_FUNCTION_NAME),
+    functionArgumentName: readStringEnv(
+      "UNREAL_E2E_FUNCTION_ARGUMENT_NAME",
+      DEFAULT_FIXTURE_FUNCTION_ARGUMENT_NAME
+    )
+  };
+};
+
+export const createProtocolClients = (
+  options: UnrealLaunchOptions = resolveLaunchOptions()
+): ProtocolClients => {
+  const http = new UnrealRC({
+    transport: "http",
+    host: options.host,
+    port: options.httpPort,
+    retry: false
+  });
+  const ws = new UnrealRC({
+    transport: "ws",
+    host: options.host,
+    port: options.wsPort,
+    retry: false
+  });
+
+  return {
+    http,
+    ws,
+    dispose(): void {
+      http.dispose();
+      ws.dispose();
+    }
+  };
+};
+
 export const launchFixtureProject = (): LaunchFixtureHandle => {
   const fixture = resolveFixture({ requireReady: true });
   const launchOptions = resolveLaunchOptions();
+  const contract = resolveFixtureContract();
 
   if (!fixture.uprojectPath) {
     throw new Error(`No .uproject file was found in "${fixture.fixtureDir}".`);
   }
 
   const logs: string[] = [];
-  const child = spawn(launchOptions.editorBin, [fixture.uprojectPath, ...launchOptions.editorArgs], {
+  const launchArgs = [fixture.uprojectPath, contract.launchMapPath, ...launchOptions.editorArgs];
+  const child = spawn(launchOptions.editorBin, launchArgs, {
     cwd: fixture.fixtureDir,
     env: process.env,
     stdio: ["ignore", "pipe", "pipe"]
@@ -97,7 +186,7 @@ export const launchFixtureProject = (): LaunchFixtureHandle => {
     fixtureDir: fixture.fixtureDir,
     uprojectPath: fixture.uprojectPath,
     command: launchOptions.editorBin,
-    args: [fixture.uprojectPath, ...launchOptions.editorArgs],
+    args: launchArgs,
     child,
     logs,
     async stop(): Promise<void> {
@@ -116,65 +205,40 @@ export const waitForRemoteControlHttp = async (
     port: options.httpPort,
     retry: false
   });
-  const endpointUrl = `http://${options.host}:${options.httpPort}/remote/info`;
-  const deadline = Date.now() + options.bootTimeoutMs;
-  let attempts = 0;
-  let lastError: unknown;
-  let portReachable = false;
 
-  try {
-    while (Date.now() <= deadline) {
-      attempts += 1;
-      portReachable = portReachable || (await canConnectToTcpPort(options.host, options.httpPort));
+  return await waitForRemoteControl(handle, {
+    client,
+    endpointUrl: `http://${options.host}:${options.httpPort}/remote/info`,
+    host: options.host,
+    port: options.httpPort,
+    bootTimeoutMs: options.bootTimeoutMs,
+    pollIntervalMs: options.pollIntervalMs,
+    requestTimeoutMs: options.requestTimeoutMs,
+    transportLabel: "HTTP"
+  });
+};
 
-      if (handle.child.exitCode !== null) {
-        throw new Error(
-          [
-            `Unreal exited before Remote Control became available (exit code ${handle.child.exitCode}).`,
-            formatLaunchContext(handle)
-          ].join("\n")
-        );
-      }
+export const waitForRemoteControlWs = async (
+  handle: LaunchFixtureHandle,
+  options: UnrealLaunchOptions = resolveLaunchOptions()
+): Promise<RemoteControlWsStatus> => {
+  const client = new UnrealRC({
+    transport: "ws",
+    host: options.host,
+    port: options.wsPort,
+    retry: false
+  });
 
-      if (handle.child.signalCode !== null) {
-        throw new Error(
-          [
-            `Unreal exited before Remote Control became available (signal ${handle.child.signalCode}).`,
-            formatLaunchContext(handle)
-          ].join("\n")
-        );
-      }
-
-      try {
-        const info = await client.info({
-          timeoutMs: options.requestTimeoutMs,
-          retry: false
-        });
-        return {
-          endpointUrl,
-          attempts,
-          portReachable: true,
-          info
-        };
-      } catch (error) {
-        lastError = error;
-      }
-
-      await sleep(options.pollIntervalMs);
-    }
-  } finally {
-    client.dispose();
-  }
-
-  const detail = lastError instanceof Error ? lastError.message : String(lastError);
-  throw new Error(
-    [
-      `Timed out waiting ${options.bootTimeoutMs}ms for Unreal Remote Control HTTP at ${endpointUrl}.`,
-      `Last probe error: ${detail}`,
-      `TCP port reachable during boot: ${portReachable ? "yes" : "no"}`,
-      formatLaunchContext(handle)
-    ].join("\n")
-  );
+  return await waitForRemoteControl(handle, {
+    client,
+    endpointUrl: `ws://${options.host}:${options.wsPort}`,
+    host: options.host,
+    port: options.wsPort,
+    bootTimeoutMs: options.bootTimeoutMs,
+    pollIntervalMs: options.pollIntervalMs,
+    requestTimeoutMs: options.requestTimeoutMs,
+    transportLabel: "WebSocket"
+  });
 };
 
 const stopChildProcess = async (child: ChildProcess): Promise<void> => {
@@ -271,6 +335,25 @@ const readArgsEnv = (name: string): string[] => {
   return [...parsed];
 };
 
+const readStringEnv = (name: string, fallback: string): string => {
+  const value = process.env[name]?.trim();
+  return value && value.length > 0 ? value : fallback;
+};
+
+const readIntegerEnv = (name: string, fallback: number): number => {
+  const raw = process.env[name]?.trim();
+  if (!raw) {
+    return fallback;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed)) {
+    throw new Error(`${name} must be an integer. Received: ${raw}`);
+  }
+
+  return parsed;
+};
+
 const readNumberEnv = (name: string, fallback: number): number => {
   const raw = process.env[name]?.trim();
   if (!raw) {
@@ -301,6 +384,79 @@ const sleep = async (ms: number): Promise<void> => {
   await new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
   });
+};
+
+const waitForRemoteControl = async (
+  handle: LaunchFixtureHandle,
+  options: {
+    client: UnrealRC;
+    endpointUrl: string;
+    host: string;
+    port: number;
+    bootTimeoutMs: number;
+    pollIntervalMs: number;
+    requestTimeoutMs: number;
+    transportLabel: string;
+  }
+): Promise<RemoteControlHttpStatus> => {
+  const deadline = Date.now() + options.bootTimeoutMs;
+  let attempts = 0;
+  let lastError: unknown;
+  let portReachable = false;
+
+  try {
+    while (Date.now() <= deadline) {
+      attempts += 1;
+      portReachable = portReachable || (await canConnectToTcpPort(options.host, options.port));
+
+      if (handle.child.exitCode !== null) {
+        throw new Error(
+          [
+            `Unreal exited before Remote Control became available (exit code ${handle.child.exitCode}).`,
+            formatLaunchContext(handle)
+          ].join("\n")
+        );
+      }
+
+      if (handle.child.signalCode !== null) {
+        throw new Error(
+          [
+            `Unreal exited before Remote Control became available (signal ${handle.child.signalCode}).`,
+            formatLaunchContext(handle)
+          ].join("\n")
+        );
+      }
+
+      try {
+        const info = await options.client.info({
+          timeoutMs: options.requestTimeoutMs,
+          retry: false
+        });
+        return {
+          endpointUrl: options.endpointUrl,
+          attempts,
+          portReachable: true,
+          info
+        };
+      } catch (error) {
+        lastError = error;
+      }
+
+      await sleep(options.pollIntervalMs);
+    }
+  } finally {
+    options.client.dispose();
+  }
+
+  const detail = lastError instanceof Error ? lastError.message : String(lastError);
+  throw new Error(
+    [
+      `Timed out waiting ${options.bootTimeoutMs}ms for Unreal Remote Control ${options.transportLabel} at ${options.endpointUrl}.`,
+      `Last probe error: ${detail}`,
+      `TCP port reachable during boot: ${portReachable ? "yes" : "no"}`,
+      formatLaunchContext(handle)
+    ].join("\n")
+  );
 };
 
 const discoverUnrealEditor = (uprojectPath: string | undefined): UnrealEditorInstall => {

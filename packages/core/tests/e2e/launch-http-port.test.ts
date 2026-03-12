@@ -1,22 +1,36 @@
 import { expect, test } from "bun:test";
-import { getBootTimeoutMs, launchFixtureProject, waitForRemoteControlHttp } from "./setup.js";
+import {
+  getBootTimeoutMs,
+  launchFixtureProject,
+  waitForRemoteControlHttp,
+  waitForRemoteControlWs
+} from "./setup.js";
 
 const launchHttpPortTest = process.env.UNREAL_E2E === "1" ? test : test.skip;
 
 launchHttpPortTest(
-  "launches the fixture project and exposes the Remote Control HTTP endpoint",
+  "launches the fixture project and exposes the Remote Control HTTP and WebSocket endpoints",
   async () => {
     const handle = launchFixtureProject();
 
     try {
-      const status = await waitForRemoteControlHttp(handle);
-      const routes = status.info.HttpRoutes ?? status.info.Routes ?? [];
+      const httpStatus = await waitForRemoteControlHttp(handle);
+      const wsStatus = await waitForRemoteControlWs(handle);
+      const httpRoutes = httpStatus.info.HttpRoutes ?? httpStatus.info.Routes ?? [];
+      const wsRoutes = wsStatus.info.HttpRoutes ?? wsStatus.info.Routes ?? [];
 
-      expect(status.portReachable).toBe(true);
-      expect(status.endpointUrl).toEndWith("/remote/info");
-      expect(routes.length).toBeGreaterThan(0);
+      expect(httpStatus.portReachable).toBe(true);
+      expect(httpStatus.endpointUrl).toEndWith("/remote/info");
+      expect(httpRoutes.length).toBeGreaterThan(0);
       expect(
-        routes.some((route) => route.Path === "/remote/info" || route.Path === "/remote/object/call")
+        httpRoutes.some((route) => route.Path === "/remote/info" || route.Path === "/remote/object/call")
+      ).toBe(true);
+
+      expect(wsStatus.portReachable).toBe(true);
+      expect(wsStatus.endpointUrl).toStartWith("ws://");
+      expect(wsRoutes.length).toBeGreaterThan(0);
+      expect(
+        wsRoutes.some((route) => route.Path === "/remote/info" || route.Path === "/remote/object/property")
       ).toBe(true);
     } finally {
       await handle.stop();
