@@ -208,7 +208,11 @@ export const buildPropertyRequest = (
   return ObjectPropertyRequestSchema.parse({
     objectPath,
     ...(options.propertyName !== undefined ? { propertyName: options.propertyName } : {}),
-    ...(hasPropertyValue ? { propertyValue: options.propertyValue } : {}),
+    ...(hasPropertyValue
+      ? {
+          propertyValue: normalizePropertyValue(options.propertyName, options.propertyValue)
+        }
+      : {}),
     access
   });
 };
@@ -744,6 +748,29 @@ const correlateBatchResponses = (requests: BatchRequestItem[], response: BatchRe
 
 const resolveTransportName = (transport: Transport): string => {
   return transport.transport ?? "custom";
+};
+
+const normalizePropertyValue = (propertyName: string | undefined, propertyValue: unknown): unknown => {
+  if (propertyName === undefined) {
+    return propertyValue;
+  }
+
+  if (isSinglePropertyValueMap(propertyValue, propertyName)) {
+    return propertyValue;
+  }
+
+  return {
+    [propertyName]: propertyValue
+  };
+};
+
+const isSinglePropertyValueMap = (value: unknown, propertyName: string): value is Record<string, unknown> => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  const keys = Object.keys(value);
+  return keys.length === 1 && keys[0] === propertyName;
 };
 
 const defaultRetryDelayMs = (attempt: number): number => {

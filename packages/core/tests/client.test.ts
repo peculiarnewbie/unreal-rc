@@ -256,7 +256,9 @@ describe("UnrealRC client", () => {
       body: {
         objectPath: "/Game/Maps/Main.Main:Actor",
         propertyName: "Counter",
-        propertyValue: 1,
+        propertyValue: {
+          Counter: 1
+        },
         access: "WRITE_ACCESS"
       }
     });
@@ -267,7 +269,9 @@ describe("UnrealRC client", () => {
       body: {
         objectPath: "/Game/Maps/Main.Main:Actor",
         propertyName: "Counter",
-        propertyValue: 2,
+        propertyValue: {
+          Counter: 2
+        },
         access: "WRITE_TRANSACTION_ACCESS"
       }
     });
@@ -704,6 +708,19 @@ describe("BatchBuilder and protocol builders", () => {
       objectPath: "/Game/Maps/Main.Main:Actor",
       propertyName: "Counter",
       access: "READ_ACCESS"
+    });
+    expect(
+      buildPropertyRequest("/Game/Maps/Main.Main:Actor", {
+        propertyName: "Counter",
+        propertyValue: 3
+      })
+    ).toEqual({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      propertyName: "Counter",
+      propertyValue: {
+        Counter: 3
+      },
+      access: "WRITE_ACCESS"
     });
     expect(buildDescribeRequest("/Game/Maps/Main.Main:Actor")).toEqual({
       objectPath: "/Game/Maps/Main.Main:Actor"
