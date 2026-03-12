@@ -82,7 +82,7 @@ UNREAL_E2E_MAP_PATH=/Game/Maps/RemoteControlE2E
 UNREAL_E2E_LAUNCH_MAP_PATH=/Game/Maps/RemoteControlE2E
 UNREAL_E2E_WORLD_NAME=RemoteControlE2E
 UNREAL_E2E_ACTOR_NAME=E2EFixtureActor
-UNREAL_E2E_OBJECT_PATH=/Game/Maps/RemoteControlE2E.RemoteControlE2E:PersistentLevel.E2EFixtureActor
+UNREAL_E2E_OBJECT_PATH=/Game/Maps/RemoteControlE2E.RemoteControlE2E:PersistentLevel.E2EFixtureActor_C_1
 UNREAL_E2E_PROPERTY_NAME=Counter
 UNREAL_E2E_BASELINE_VALUE=0
 UNREAL_E2E_HTTP_WRITE_VALUE=10
@@ -103,7 +103,7 @@ Create or update the Unreal fixture project used for unreal-rc e2e tests with th
 - Enable the Remote Control API plugin and any required dependencies.
 - Create a map at /Game/Maps/RemoteControlE2E.
 - Create an actor Blueprint that can be placed in the level.
-- Place exactly one instance in the map and rename the placed actor instance to E2EFixtureActor so its object path is /Game/Maps/RemoteControlE2E.RemoteControlE2E:PersistentLevel.E2EFixtureActor.
+- Place exactly one instance in the map and rename the placed actor instance to E2EFixtureActor so its object path resolves to /Game/Maps/RemoteControlE2E.RemoteControlE2E:PersistentLevel.E2EFixtureActor_C_1.
 - Add an integer variable named Counter, editable through Remote Control, with default value 0.
 - Add a BlueprintCallable function named AddToCounter with one integer input parameter named Delta and an integer return value.
 - Implement AddToCounter so it adds Delta to Counter, stores the new Counter value, and returns the new Counter value.

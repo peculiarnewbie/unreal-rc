@@ -19,6 +19,8 @@ const WINDOWS_EDITOR_NAMES = ["UnrealEditor.exe", "UE4Editor.exe"];
 const DEFAULT_FIXTURE_MAP_NAME = "RemoteControlE2E";
 const DEFAULT_FIXTURE_MAP_PATH = `/Game/Maps/${DEFAULT_FIXTURE_MAP_NAME}`;
 const DEFAULT_FIXTURE_ACTOR_NAME = "E2EFixtureActor";
+const DEFAULT_FIXTURE_OBJECT_PATH =
+  "/Game/Maps/RemoteControlE2E.RemoteControlE2E:PersistentLevel.E2EFixtureActor_C_1";
 const DEFAULT_FIXTURE_PROPERTY_NAME = "Counter";
 const DEFAULT_FIXTURE_FUNCTION_NAME = "AddToCounter";
 const DEFAULT_FIXTURE_FUNCTION_ARGUMENT_NAME = "Delta";
@@ -116,10 +118,7 @@ export const resolveFixtureContract = (): FixtureProtocolContract => {
     launchMapPath: readStringEnv("UNREAL_E2E_LAUNCH_MAP_PATH", mapPath),
     worldName,
     actorName,
-    objectPath: readStringEnv(
-      "UNREAL_E2E_OBJECT_PATH",
-      `${mapPath}.${worldName}:PersistentLevel.${actorName}`
-    ),
+    objectPath: readStringEnv("UNREAL_E2E_OBJECT_PATH", DEFAULT_FIXTURE_OBJECT_PATH),
     propertyName: readStringEnv("UNREAL_E2E_PROPERTY_NAME", DEFAULT_FIXTURE_PROPERTY_NAME),
     baselineValue: readIntegerEnv("UNREAL_E2E_BASELINE_VALUE", 0),
     httpWriteValue: readIntegerEnv("UNREAL_E2E_HTTP_WRITE_VALUE", 10),
