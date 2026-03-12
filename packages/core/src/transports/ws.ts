@@ -25,6 +25,7 @@ export interface WebSocketTransportOptions {
 
 type OutboundRequest = {
   requestId: number;
+  correlationId: string;
   verb: HttpVerb;
   url: string;
   body: unknown;
@@ -187,10 +188,12 @@ export class WebSocketTransport implements ConnectableTransport {
   ): Promise<TransportResponse> {
     const timeoutMs = options?.timeoutMs ?? this.requestTimeoutMs;
     const requestId = this.nextRequestId++;
+    const correlationId = String(requestId);
 
     return new Promise<TransportResponse>((resolve, reject) => {
       const outbound: OutboundRequest = {
         requestId,
+        correlationId,
         verb,
         url,
         body,
@@ -290,16 +293,16 @@ export class WebSocketTransport implements ConnectableTransport {
 
     const requestIdValue = payload.RequestId;
     const requestId = typeof requestIdValue === "number" ? requestIdValue : Number(requestIdValue);
-    if (!Number.isFinite(requestId)) {
-      return;
-    }
+    const idValue = payload.Id;
+    const correlationId =
+      typeof idValue === "string" || typeof idValue === "number" ? String(idValue) : undefined;
 
-    const pending = this.pendingRequests.get(requestId);
+    const pending = this.resolvePendingRequest(requestId, correlationId);
     if (!pending) {
       return;
     }
 
-    this.pendingRequests.delete(requestId);
+    this.pendingRequests.delete(pending.requestId);
     if (pending.timer) {
       clearTimeout(pending.timer);
     }
@@ -312,7 +315,7 @@ export class WebSocketTransport implements ConnectableTransport {
       pending.resolve({
         body: payload.ResponseBody,
         statusCode: responseCode,
-        requestId
+        requestId: pending.requestId
       });
       return;
     }
@@ -344,6 +347,29 @@ export class WebSocketTransport implements ConnectableTransport {
     );
   };
 
+  private resolvePendingRequest(
+    requestId: number,
+    correlationId: string | undefined
+  ): OutboundRequest | undefined {
+    if (correlationId) {
+      for (const pending of this.pendingRequests.values()) {
+        if (pending.correlationId === correlationId) {
+          return pending;
+        }
+      }
+    }
+
+    if (Number.isFinite(requestId) && requestId >= 0) {
+      return this.pendingRequests.get(requestId);
+    }
+
+    if (this.pendingRequests.size === 1) {
+      return this.pendingRequests.values().next().value;
+    }
+
+    return undefined;
+  }
+
   private readonly onClose = (): void => {
     this.connectedState = false;
     this.stopPing();
@@ -372,6 +398,7 @@ export class WebSocketTransport implements ConnectableTransport {
 
     const envelope: {
       MessageName: "http";
+      Id: string;
       Parameters: {
         RequestId: number;
         Url: string;
@@ -380,6 +407,7 @@ export class WebSocketTransport implements ConnectableTransport {
       };
     } = {
       MessageName: "http",
+      Id: request.correlationId,
       Parameters: {
         RequestId: request.requestId,
         Url: request.url,

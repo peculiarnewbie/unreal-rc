@@ -525,6 +525,70 @@ describe("UnrealRC client", () => {
     client.dispose();
   });
 
+  test("sends compatible WebSocket HTTP envelopes with both Id fields", async () => {
+    globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
+
+    const client = new UnrealRC({
+      transport: "ws",
+      ws: {
+        baseUrl: "ws://127.0.0.1:30020",
+        autoReconnect: false,
+        pingIntervalMs: 0
+      }
+    });
+
+    const request = client.info();
+    const socket = await waitForSocket(1);
+    socket.open();
+    await flushTimers();
+
+    expect(socket.sent).toHaveLength(1);
+    expect(JSON.parse(socket.sent[0] ?? "null")).toEqual({
+      MessageName: "http",
+      Id: "1",
+      Parameters: {
+        RequestId: 1,
+        Url: "/remote/info",
+        Verb: "GET"
+      }
+    });
+
+    socket.message({
+      RequestId: 1,
+      ResponseCode: 200,
+      ResponseBody: { HttpRoutes: [] }
+    });
+
+    await expect(request).resolves.toEqual({ HttpRoutes: [] });
+    client.dispose();
+  });
+
+  test("accepts documented WebSocket responses that omit a matching RequestId", async () => {
+    globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
+
+    const client = new UnrealRC({
+      transport: "ws",
+      ws: {
+        baseUrl: "ws://127.0.0.1:30020",
+        autoReconnect: false,
+        pingIntervalMs: 0
+      }
+    });
+
+    const request = client.info();
+    const socket = await waitForSocket(1);
+    socket.open();
+    await flushTimers();
+    socket.message({
+      RequestId: -1,
+      ResponseCode: 200,
+      ResponseBody: { HttpRoutes: [] }
+    });
+
+    await expect(request).resolves.toEqual({ HttpRoutes: [] });
+    client.dispose();
+  });
+
   test("rejects pending WebSocket requests on disconnect", async () => {
     globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
 
