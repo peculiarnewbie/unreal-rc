@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 type ResolveFixtureOptions = {
@@ -21,8 +21,8 @@ type ResolvedFixture = {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT_DIR = resolve(__dirname, "..");
+const DEFAULT_FIXTURE_RELATIVE_DIR = "fixtures/unreal-project";
 const DEFAULT_FIXTURE_DIR = join(ROOT_DIR, "fixtures", "unreal-project");
-const DEFAULT_FIXTURE_RELATIVE_DIR = relative(ROOT_DIR, DEFAULT_FIXTURE_DIR);
 
 const findUProject = (fixtureDir: string): string | undefined => {
   if (!existsSync(fixtureDir)) {
