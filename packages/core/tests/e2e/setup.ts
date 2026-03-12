@@ -17,7 +17,7 @@ const DEFAULT_HTTP_PORT = 30010;
 const DEFAULT_WS_PORT = 30020;
 const DEFAULT_BOOT_TIMEOUT_MS = 180_000;
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
-const DEFAULT_REQUEST_TIMEOUT_MS = 2_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 5_000;
 const PROCESS_STOP_TIMEOUT_MS = 5_000;
 const LOG_LINE_LIMIT = 200;
 const PROTOCOL_EVENT_LIMIT = 80;
@@ -294,14 +294,29 @@ export const waitForRemoteControlWs = async (
   handle: LaunchFixtureHandle,
   options: UnrealLaunchOptions = resolveLaunchOptions()
 ): Promise<RemoteControlWsStatus> => {
-  return await waitForWebSocketEndpoint(handle, {
+  const client = new UnrealRC({
+    transport: "ws",
+    host: options.host,
+    port: options.wsPort,
+    retry: false
+  });
+
+  const status = await waitForRemoteControl(handle, {
+    client,
     endpointUrl: `ws://${options.host}:${options.wsPort}`,
     host: options.host,
     port: options.wsPort,
     bootTimeoutMs: options.bootTimeoutMs,
     pollIntervalMs: options.pollIntervalMs,
-    requestTimeoutMs: options.requestTimeoutMs
+    requestTimeoutMs: options.requestTimeoutMs,
+    transportLabel: "WebSocket"
   });
+
+  return {
+    endpointUrl: status.endpointUrl.replace("/remote/info", ""),
+    attempts: status.attempts,
+    portReachable: status.portReachable
+  };
 };
 
 const stopChildProcess = async (child: ChildProcess): Promise<void> => {
@@ -437,45 +452,6 @@ const sleep = async (ms: number): Promise<void> => {
   });
 };
 
-const canOpenWebSocket = async (endpointUrl: string, timeoutMs: number): Promise<boolean> => {
-  return await new Promise<boolean>((resolve) => {
-    const socket = new WebSocket(endpointUrl);
-    let settled = false;
-
-    const finish = (result: boolean): void => {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      clearTimeout(timer);
-      socket.removeEventListener("open", onOpen);
-      socket.removeEventListener("close", onCloseOrError);
-      socket.removeEventListener("error", onCloseOrError);
-
-      if (
-        socket.readyState === WebSocket.OPEN ||
-        socket.readyState === WebSocket.CONNECTING
-      ) {
-        socket.close(1000, "Probe complete");
-      }
-
-      resolve(result);
-    };
-
-    const onOpen = (): void => finish(true);
-    const onCloseOrError = (): void => finish(false);
-
-    const timer = setTimeout(() => {
-      finish(false);
-    }, timeoutMs);
-
-    socket.addEventListener("open", onOpen, { once: true });
-    socket.addEventListener("close", onCloseOrError, { once: true });
-    socket.addEventListener("error", onCloseOrError, { once: true });
-  });
-};
-
 const waitForRemoteControl = async (
   handle: LaunchFixtureHandle,
   options: {
@@ -543,63 +519,6 @@ const waitForRemoteControl = async (
     [
       `Timed out waiting ${options.bootTimeoutMs}ms for Unreal Remote Control ${options.transportLabel} at ${options.endpointUrl}.`,
       `Last probe error: ${detail}`,
-      `TCP port reachable during boot: ${portReachable ? "yes" : "no"}`,
-      formatLaunchContext(handle)
-    ].join("\n")
-  );
-};
-
-const waitForWebSocketEndpoint = async (
-  handle: LaunchFixtureHandle,
-  options: {
-    endpointUrl: string;
-    host: string;
-    port: number;
-    bootTimeoutMs: number;
-    pollIntervalMs: number;
-    requestTimeoutMs: number;
-  }
-): Promise<RemoteControlWsStatus> => {
-  const deadline = Date.now() + options.bootTimeoutMs;
-  let attempts = 0;
-  let portReachable = false;
-
-  while (Date.now() <= deadline) {
-    attempts += 1;
-    portReachable = portReachable || (await canConnectToTcpPort(options.host, options.port));
-
-    if (handle.child.exitCode !== null) {
-      throw new Error(
-        [
-          `Unreal exited before Remote Control WebSocket became available (exit code ${handle.child.exitCode}).`,
-          formatLaunchContext(handle)
-        ].join("\n")
-      );
-    }
-
-    if (handle.child.signalCode !== null) {
-      throw new Error(
-        [
-          `Unreal exited before Remote Control WebSocket became available (signal ${handle.child.signalCode}).`,
-          formatLaunchContext(handle)
-        ].join("\n")
-      );
-    }
-
-    if (await canOpenWebSocket(options.endpointUrl, options.requestTimeoutMs)) {
-      return {
-        endpointUrl: options.endpointUrl,
-        attempts,
-        portReachable: true
-      };
-    }
-
-    await sleep(options.pollIntervalMs);
-  }
-
-  throw new Error(
-    [
-      `Timed out waiting ${options.bootTimeoutMs}ms for Unreal Remote Control WebSocket at ${options.endpointUrl}.`,
       `TCP port reachable during boot: ${portReachable ? "yes" : "no"}`,
       formatLaunchContext(handle)
     ].join("\n")

@@ -398,7 +398,6 @@ export class WebSocketTransport implements ConnectableTransport {
 
     const envelope: {
       MessageName: "http";
-      Id: string;
       Parameters: {
         RequestId: number;
         Url: string;
@@ -407,7 +406,6 @@ export class WebSocketTransport implements ConnectableTransport {
       };
     } = {
       MessageName: "http",
-      Id: request.correlationId,
       Parameters: {
         RequestId: request.requestId,
         Url: request.url,
