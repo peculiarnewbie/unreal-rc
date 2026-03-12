@@ -4,7 +4,13 @@ import { delimiter } from "node:path";
 import { dirname, join, resolve } from "node:path";
 import { Socket } from "node:net";
 import { resolveFixture } from "../../../../scripts/unreal-fixture.js";
-import { UnrealRC, type InfoResponse } from "../../src/client.js";
+import {
+  UnrealRC,
+  type ErrorHookContext,
+  type InfoResponse,
+  type RequestHookContext,
+  type ResponseHookContext
+} from "../../src/client.js";
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_HTTP_PORT = 30010;
@@ -14,6 +20,7 @@ const DEFAULT_POLL_INTERVAL_MS = 1_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 2_000;
 const PROCESS_STOP_TIMEOUT_MS = 5_000;
 const LOG_LINE_LIMIT = 200;
+const PROTOCOL_EVENT_LIMIT = 80;
 const UNIX_EDITOR_NAMES = ["UnrealEditor", "UE4Editor"];
 const WINDOWS_EDITOR_NAMES = ["UnrealEditor.exe", "UE4Editor.exe"];
 const DEFAULT_FIXTURE_MAP_NAME = "RemoteControlE2E";
@@ -78,7 +85,13 @@ export interface FixtureProtocolContract {
 export interface ProtocolClients {
   http: UnrealRC;
   ws: UnrealRC;
+  diagnostics: ProtocolDiagnostics;
   dispose(): void;
+}
+
+export interface ProtocolDiagnostics {
+  readonly events: string[];
+  formatRecentEvents(limit?: number): string;
 }
 
 interface UnrealEditorInstall {
@@ -136,27 +149,83 @@ export const resolveFixtureContract = (): FixtureProtocolContract => {
 export const createProtocolClients = (
   options: UnrealLaunchOptions = resolveLaunchOptions()
 ): ProtocolClients => {
+  const diagnostics = createProtocolDiagnostics();
   const http = new UnrealRC({
     transport: "http",
     host: options.host,
     port: options.httpPort,
-    retry: false
+    retry: false,
+    onRequest: (context) => {
+      diagnostics.recordRequest("http", context);
+    },
+    onResponse: (context) => {
+      diagnostics.recordResponse("http", context);
+    },
+    onError: (context) => {
+      diagnostics.recordError("http", context);
+    }
   });
   const ws = new UnrealRC({
     transport: "ws",
     host: options.host,
     port: options.wsPort,
-    retry: false
+    retry: false,
+    onRequest: (context) => {
+      diagnostics.recordRequest("ws", context);
+    },
+    onResponse: (context) => {
+      diagnostics.recordResponse("ws", context);
+    },
+    onError: (context) => {
+      diagnostics.recordError("ws", context);
+    }
   });
 
   return {
     http,
     ws,
+    diagnostics,
     dispose(): void {
       http.dispose();
       ws.dispose();
     }
   };
+};
+
+export const formatLaunchContext = (handle: LaunchFixtureHandle): string => {
+  const recentLogs = handle.logs.length > 0 ? handle.logs.join("\n") : "(no stdout/stderr captured)";
+
+  return [
+    `Launch command: ${handle.command}`,
+    `Launch args: ${handle.args.join(" ")}`,
+    `Fixture project: ${handle.uprojectPath}`,
+    "Recent Unreal output:",
+    recentLogs
+  ].join("\n");
+};
+
+export const formatE2eFailure = (options: {
+  error: unknown;
+  step: string;
+  handle: LaunchFixtureHandle;
+  diagnostics: ProtocolDiagnostics;
+  contract: FixtureProtocolContract;
+  launchOptions: UnrealLaunchOptions;
+}): string => {
+  const details = formatErrorDetails(options.error);
+
+  return [
+    `Protocol roundtrip failed at step: ${options.step}`,
+    `Fixture objectPath: ${options.contract.objectPath}`,
+    `Property/function: ${options.contract.propertyName} / ${options.contract.functionName}`,
+    `HTTP endpoint: http://${options.launchOptions.host}:${options.launchOptions.httpPort}`,
+    `WebSocket endpoint: ws://${options.launchOptions.host}:${options.launchOptions.wsPort}`,
+    "Error details:",
+    details,
+    "Recent protocol events:",
+    options.diagnostics.formatRecentEvents(),
+    formatLaunchContext(options.handle)
+  ].join("\n");
 };
 
 export const launchFixtureProject = (): LaunchFixtureHandle => {
@@ -360,18 +429,6 @@ const readNumberEnv = (name: string, fallback: number): number => {
   }
 
   return parsed;
-};
-
-const formatLaunchContext = (handle: LaunchFixtureHandle): string => {
-  const recentLogs = handle.logs.length > 0 ? handle.logs.join("\n") : "(no stdout/stderr captured)";
-
-  return [
-    `Launch command: ${handle.command}`,
-    `Launch args: ${handle.args.join(" ")}`,
-    `Fixture project: ${handle.uprojectPath}`,
-    "Recent Unreal output:",
-    recentLogs
-  ].join("\n");
 };
 
 const sleep = async (ms: number): Promise<void> => {
@@ -594,6 +651,112 @@ const dedupeInstalls = (installs: UnrealEditorInstall[]): UnrealEditorInstall[] 
   }
 
   return result;
+};
+
+const createProtocolDiagnostics = (): ProtocolDiagnostics & {
+  recordRequest(transport: string, context: RequestHookContext): void;
+  recordResponse(transport: string, context: ResponseHookContext): void;
+  recordError(transport: string, context: ErrorHookContext): void;
+} => {
+  const events: string[] = [];
+
+  const push = (line: string): void => {
+    events.push(`${new Date().toISOString()} ${line}`);
+    if (events.length > PROTOCOL_EVENT_LIMIT) {
+      events.splice(0, events.length - PROTOCOL_EVENT_LIMIT);
+    }
+  };
+
+  return {
+    events,
+    recordRequest(transport: string, context: RequestHookContext): void {
+      push(
+        [
+          `[${transport}] request`,
+          `${context.verb} ${context.url}`,
+          `attempt=${context.attempt}`,
+          `body=${formatPayload(context.body)}`
+        ].join(" ")
+      );
+    },
+    recordResponse(transport: string, context: ResponseHookContext): void {
+      push(
+        [
+          `[${transport}] response`,
+          `${context.verb} ${context.url}`,
+          `attempt=${context.attempt}`,
+          `status=${context.statusCode ?? "n/a"}`,
+          `requestId=${context.requestId ?? "n/a"}`,
+          `durationMs=${context.durationMs}`,
+          `body=${formatPayload(context.body)}`
+        ].join(" ")
+      );
+    },
+    recordError(transport: string, context: ErrorHookContext): void {
+      push(
+        [
+          `[${transport}] error`,
+          `${context.verb} ${context.url}`,
+          `attempt=${context.attempt}`,
+          `status=${context.statusCode ?? "n/a"}`,
+          `requestId=${context.requestId ?? "n/a"}`,
+          `durationMs=${context.durationMs}`,
+          `kind=${context.error.kind}`,
+          `message=${context.error.message}`,
+          `errorBody=${formatPayload(context.errorBody)}`
+        ].join(" ")
+      );
+    },
+    formatRecentEvents(limit = 20): string {
+      if (events.length === 0) {
+        return "(no protocol events recorded)";
+      }
+
+      return events.slice(-limit).join("\n");
+    }
+  };
+};
+
+const formatErrorDetails = (error: unknown): string => {
+  if (error instanceof Error) {
+    const fields: string[] = [`${error.name}: ${error.message}`];
+    const record = error as Record<string, unknown>;
+
+    for (const key of ["kind", "transport", "verb", "url", "requestId", "statusCode", "details"]) {
+      if (record[key] !== undefined) {
+        fields.push(`${key}: ${formatPayload(record[key])}`);
+      }
+    }
+
+    if (error.stack) {
+      fields.push("Stack:");
+      fields.push(error.stack);
+    }
+
+    return fields.join("\n");
+  }
+
+  return formatPayload(error);
+};
+
+const formatPayload = (value: unknown): string => {
+  if (value === undefined) {
+    return "undefined";
+  }
+
+  if (typeof value === "string") {
+    return truncate(value);
+  }
+
+  try {
+    return truncate(JSON.stringify(value));
+  } catch {
+    return truncate(String(value));
+  }
+};
+
+const truncate = (value: string, maxLength = 400): string => {
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 3)}...`;
 };
 
 const discoverFromEngineRoot = (engineAssociation: string | undefined): UnrealEditorInstall[] => {
