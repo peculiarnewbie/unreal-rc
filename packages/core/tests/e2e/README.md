@@ -13,10 +13,10 @@ Fixture resolution order:
 1. `UNREAL_FIXTURE_DIR`
 2. `fixtures/unreal-project`
 
-The launch smoke test starts the fixture `.uproject`, then polls both protocol endpoints until Unreal Remote Control responds:
+The launch smoke test starts the fixture `.uproject`, then waits for:
 
 - `http://127.0.0.1:30010/remote/info`
-- `ws://127.0.0.1:30020`
+- `ws://127.0.0.1:30020` to accept a WebSocket connection
 
 The launcher opens the fixture project with the test map as a command-line argument:
 

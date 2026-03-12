@@ -40,7 +40,7 @@ bun run fixture:update
 bun run test:e2e
 ```
 
-`bun run test:e2e` now includes a launch smoke test that boots the fixture `.uproject` and waits for Unreal Remote Control HTTP at `/remote/info`.
+`bun run test:e2e` now includes a launch smoke test that boots the fixture `.uproject`, waits for Unreal Remote Control HTTP at `/remote/info`, and waits for the WebSocket endpoint to accept a connection.
 
 Editor discovery order:
 
