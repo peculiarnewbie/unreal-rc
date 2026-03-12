@@ -15,7 +15,7 @@ import {
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_HTTP_PORT = 30010;
 const DEFAULT_WS_PORT = 30020;
-const DEFAULT_BOOT_TIMEOUT_MS = 180_000;
+const DEFAULT_BOOT_TIMEOUT_MS = 120_000;
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 5_000;
 const PROCESS_STOP_TIMEOUT_MS = 5_000;
@@ -50,6 +50,8 @@ export interface LaunchFixtureHandle {
   readonly args: string[];
   readonly child: ChildProcess;
   readonly logs: string[];
+  readonly host: string;
+  readonly httpPort: number;
   stop(): Promise<void>;
 }
 
@@ -254,6 +256,9 @@ export const launchFixtureProject = (): LaunchFixtureHandle => {
     pushLogLines(logs, chunk.toString());
   });
 
+  const host = launchOptions.host;
+  const httpPort = launchOptions.httpPort;
+
   return {
     fixtureDir: fixture.fixtureDir,
     uprojectPath: fixture.uprojectPath,
@@ -261,7 +266,10 @@ export const launchFixtureProject = (): LaunchFixtureHandle => {
     args: launchArgs,
     child,
     logs,
+    host,
+    httpPort,
     async stop(): Promise<void> {
+      await requestEditorExit(host, httpPort);
       await stopChildProcess(child);
     }
   };
@@ -317,6 +325,21 @@ export const waitForRemoteControlWs = async (
     attempts: status.attempts,
     portReachable: status.portReachable
   };
+};
+
+const requestEditorExit = async (host: string, httpPort: number): Promise<void> => {
+  const url = `http://${host}:${httpPort}/remote/object/call`;
+  try {
+    await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        objectPath: "/Script/Engine.Default__KismetSystemLibrary",
+        functionName: "QuitEditor"
+      }),
+      signal: AbortSignal.timeout(DEFAULT_REQUEST_TIMEOUT_MS)
+    });
+  } catch {}
 };
 
 const stopChildProcess = async (child: ChildProcess): Promise<void> => {
@@ -475,7 +498,9 @@ const waitForRemoteControl = async (
       attempts += 1;
       portReachable = portReachable || (await canConnectToTcpPort(options.host, options.port));
 
-      if (handle.child.exitCode !== null) {
+      // On Windows, UnrealEditor.exe may re-launch as a separate process and
+      // the original launcher exits with code 0.  That is normal — keep polling.
+      if (handle.child.exitCode !== null && handle.child.exitCode !== 0) {
         throw new Error(
           [
             `Unreal exited before Remote Control became available (exit code ${handle.child.exitCode}).`,
@@ -506,6 +531,7 @@ const waitForRemoteControl = async (
         };
       } catch (error) {
         lastError = error;
+        // continue polling
       }
 
       await sleep(options.pollIntervalMs);

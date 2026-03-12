@@ -276,9 +276,11 @@ export class WebSocketTransport implements ConnectableTransport {
     const raw =
       typeof event.data === "string"
         ? event.data
-        : event.data instanceof ArrayBuffer
-          ? new TextDecoder().decode(event.data)
-          : undefined;
+        : typeof Buffer !== "undefined" && Buffer.isBuffer(event.data)
+          ? (event.data as Buffer).toString("utf8")
+          : event.data instanceof ArrayBuffer
+            ? new TextDecoder().decode(event.data)
+            : undefined;
 
     if (!raw) {
       return;
@@ -313,7 +315,7 @@ export class WebSocketTransport implements ConnectableTransport {
 
     if (Number.isFinite(responseCode) && responseCode >= 200 && responseCode < 300) {
       pending.resolve({
-        body: payload.ResponseBody,
+        body: payload.ResponseBody ?? undefined,
         statusCode: responseCode,
         requestId: pending.requestId
       });

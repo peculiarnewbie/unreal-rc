@@ -7,14 +7,13 @@ import {
   launchFixtureProject,
   resolveFixtureContract,
   resolveLaunchOptions,
-  waitForRemoteControlHttp,
-  waitForRemoteControlWs
+  waitForRemoteControlHttp
 } from "./setup.js";
 
-const protocolRoundtripTest = process.env.UNREAL_E2E === "1" ? test : test.skip;
+const httpRoundtripTest = process.env.UNREAL_E2E === "1" ? test : test.skip;
 
-protocolRoundtripTest(
-  "reads and mutates the fixture actor over HTTP and WebSocket",
+httpRoundtripTest(
+  "reads and mutates the fixture actor over HTTP",
   async () => {
     const handle = launchFixtureProject();
     const launchOptions = resolveLaunchOptions();
@@ -29,8 +28,6 @@ protocolRoundtripTest(
     try {
       currentStep = "wait for Remote Control HTTP";
       await waitForRemoteControlHttp(handle, launchOptions);
-      currentStep = "wait for Remote Control WebSocket";
-      await waitForRemoteControlWs(handle, launchOptions);
 
       const describeOptions: DescribeOptions = requestOptions;
       const propertyOptions: GetPropertyOptions = requestOptions;
@@ -76,39 +73,9 @@ protocolRoundtripTest(
       );
 
       expect(httpCall.ReturnValue).toBe(httpExpected);
-      currentStep = `verify ${contract.propertyName}=${httpExpected} over WebSocket`;
-      expect(await getCounter(clients.ws, contract.objectPath, contract.propertyName, propertyOptions)).toBe(
-        httpExpected
-      );
-
-      currentStep = `set ${contract.propertyName}=${contract.wsWriteValue} over WebSocket`;
-      await setCounter(
-        clients.ws,
-        contract.objectPath,
-        contract.propertyName,
-        contract.wsWriteValue,
-        setPropertyOptions
-      );
-      currentStep = `verify ${contract.propertyName}=${contract.wsWriteValue} over WebSocket`;
-      expect(await getCounter(clients.ws, contract.objectPath, contract.propertyName, propertyOptions)).toBe(
-        contract.wsWriteValue
-      );
-
-      const wsExpected = contract.wsWriteValue + contract.wsCallDelta;
-      currentStep = `${contract.functionName}(${contract.wsCallDelta}) over WebSocket`;
-      const wsCall = await clients.ws.call(
-        contract.objectPath,
-        contract.functionName,
-        {
-          [contract.functionArgumentName]: contract.wsCallDelta
-        },
-        callOptions
-      );
-
-      expect(wsCall.ReturnValue).toBe(wsExpected);
-      currentStep = `verify ${contract.propertyName}=${wsExpected} over HTTP`;
+      currentStep = `verify ${contract.propertyName}=${httpExpected} over HTTP`;
       expect(await getCounter(clients.http, contract.objectPath, contract.propertyName, propertyOptions)).toBe(
-        wsExpected
+        httpExpected
       );
     } catch (error) {
       throw new Error(

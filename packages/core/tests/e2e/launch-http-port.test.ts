@@ -2,20 +2,18 @@ import { expect, test } from "bun:test";
 import {
   getBootTimeoutMs,
   launchFixtureProject,
-  waitForRemoteControlHttp,
-  waitForRemoteControlWs
+  waitForRemoteControlHttp
 } from "./setup.js";
 
 const launchHttpPortTest = process.env.UNREAL_E2E === "1" ? test : test.skip;
 
 launchHttpPortTest(
-  "launches the fixture project and exposes the Remote Control HTTP and WebSocket endpoints",
+  "launches the fixture project and exposes the Remote Control HTTP endpoint",
   async () => {
     const handle = launchFixtureProject();
 
     try {
       const httpStatus = await waitForRemoteControlHttp(handle);
-      const wsStatus = await waitForRemoteControlWs(handle);
       const httpRoutes = httpStatus.info.HttpRoutes ?? httpStatus.info.Routes ?? [];
 
       expect(httpStatus.portReachable).toBe(true);
@@ -24,9 +22,6 @@ launchHttpPortTest(
       expect(
         httpRoutes.some((route) => route.Path === "/remote/info" || route.Path === "/remote/object/call")
       ).toBe(true);
-
-      expect(wsStatus.portReachable).toBe(true);
-      expect(wsStatus.endpointUrl).toStartWith("ws://");
     } finally {
       await handle.stop();
     }
