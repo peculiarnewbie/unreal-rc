@@ -1,0 +1,3 @@
+[submodule "fixtures/unreal-project"]
+	path = fixtures/unreal-project
+	url = https://github.com/peculiarnewbie/-unreal-rc-fixture
