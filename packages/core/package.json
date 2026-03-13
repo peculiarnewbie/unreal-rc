@@ -1,6 +1,6 @@
 {
   "name": "unreal-rc",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Typed client for Unreal Engine Remote Control over WebSocket or HTTP",
   "license": "MIT",
   "repository": {
