@@ -32,9 +32,7 @@ export const ObjectPropertyRequestSchema = Schema.Struct({
   access: Schema.optional(AccessModeSchema)
 });
 
-export const ObjectPropertyResponseSchema = Schema.Struct({
-  ReturnValue: Schema.optional(Schema.Unknown)
-});
+export const ObjectPropertyResponseSchema = Schema.Record(Schema.String, Schema.Unknown);
 
 // ── Object Describe ────────────────────────────────────────────────────
 
