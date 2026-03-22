@@ -23,7 +23,7 @@ unreal-rc/
 The runtime library. Talk to Unreal's Remote Control plugin over WebSocket or HTTP.
 
 - Transport-agnostic client (`UnrealRC` class)
-- Zod-validated request/response types
+- Effect Schema-validated request/response payloads
 - WebSocket transport (auto-reconnect, keepalive, auto-incrementing IDs)
 - HTTP transport (fetch-based)
 - Helpers: path builders, PIE paths, common UE type constructors

@@ -22,7 +22,7 @@ Guidance for coding agents working in `unreal-rc`.
 - Package manager: `bun` (`packageManager` is `bun@1.2.21`).
 - Language: TypeScript (ESM, NodeNext).
 - Runtime baseline: Node `>=18` for `packages/core`.
-- Validation library: `zod`.
+- Validation library: `effect` (`Schema`).
 - No lint framework is configured right now (no ESLint/Biome config found).
 - No dedicated test runner config is committed right now.
 
@@ -117,15 +117,15 @@ From `tsconfig.base.json` and package configs:
 ### Types and Validation
 
 - Never introduce `any` unless absolutely unavoidable; prefer `unknown` + narrowing.
-- Validate request/response boundary payloads with Zod schemas.
-- Co-locate schema/type pairs using `FooSchema` + `type Foo = z.infer<typeof FooSchema>`.
-- Use `.strict()` for exact input payload contracts when appropriate.
-- Use `.passthrough()` only when API responses legitimately contain extra keys.
+- Validate request/response boundary payloads with Effect Schema.
+- Keep schema/type naming aligned, using `FooSchema` for runtime schemas and matching exported TypeScript types where needed.
+- Use `Schema.Struct` and related combinators for exact payload contracts by default.
+- Only allow extra keys when the API contract genuinely permits them.
 - Keep exported function/method return types explicit where clarity matters.
 
 ### Naming
 
-- `PascalCase`: classes, interfaces, exported types, Zod schemas.
+- `PascalCase`: classes, interfaces, exported types, Effect schemas.
 - `camelCase`: functions, methods, local variables, object fields.
 - `UPPER_SNAKE_CASE`: module-level constants.
 - Use descriptive names reflecting Unreal RC domain terms (`objectPath`, `propertyName`, `RequestId`, etc.).
@@ -164,4 +164,4 @@ From `tsconfig.base.json` and package configs:
 - Prefer root scripts for standard checks; use `--cwd packages/core` for package-local iteration.
 - For rapid debugging, run a single targeted test file/name once tests exist.
 - When adding new public API surface, update barrel exports and README usage snippets.
-- When changing wire contracts, update Zod schemas and inferred types together.
+- When changing wire contracts, update Effect schemas and corresponding exported types together.

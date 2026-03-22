@@ -3,10 +3,10 @@
 Typed TypeScript client for Unreal Engine's [Remote Control](https://dev.epicgames.com/documentation/en-us/unreal-engine/remote-control-for-unreal-engine) plugin. Communicate with a running Unreal Editor or game instance over WebSocket or HTTP.
 
 - **Transport-agnostic** — swap between WebSocket and HTTP with one option
-- **Type-safe** — Zod-based schema validation on all responses
+- **Type-safe** — Effect Schema validation on request and response payloads
 - **Resilient** — auto-reconnect, configurable retries, end-to-end request timeouts
 - **Observable** — lifecycle hooks for logging and tracing
-- **Zero external dependencies** besides [Effect](https://effect.website)
+- **Single runtime dependency**: [Effect](https://effect.website)
 
 ## Install
 
@@ -39,7 +39,7 @@ const ue = new UnrealRC({
   transport: "ws",          // "ws" | "http"
   host: "127.0.0.1",       // Unreal host
   port: 30020,             // Port (default: 30020 for ws, 30010 for http)
-  validateResponses: true,  // Validate response schemas with Zod
+  validateResponses: true,  // Validate response schemas with Effect Schema
   retry: {                  // Retry policy (or `true` for defaults, `false` to disable)
     maxAttempts: 3,
     delayMs: 100,           // or (context) => context.attempt * 200
@@ -414,7 +414,7 @@ For building custom tooling or higher-level abstractions, the package also expor
 
 - **Request builders:** `buildCallRequest`, `buildPropertyRequest`, `buildDescribeRequest`, `buildBatchRequest`
 - **Batch builder class:** `BatchBuilder`
-- **All Zod schemas:** `ObjectCallRequestSchema`, `ObjectCallResponseSchema`, etc.
+- **All Effect schemas:** `ObjectCallRequestSchema`, `ObjectCallResponseSchema`, etc.
 - **Transport layers:** `HttpTransportLive`, `WebSocketTransportLive` (for Effect-based usage)
 - **All TypeScript types:** `ObjectCallRequest`, `ObjectCallResponse`, `FunctionMetadata`, etc.
 
