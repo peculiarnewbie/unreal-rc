@@ -4,7 +4,7 @@ Typed TypeScript client for Unreal Engine's [Remote Control](https://dev.epicgam
 
 - **Transport-agnostic** — swap between WebSocket and HTTP with one option
 - **Type-safe** — Zod-based schema validation on all responses
-- **Resilient** — auto-reconnect, configurable retries, per-request timeouts
+- **Resilient** — auto-reconnect, configurable retries, end-to-end request timeouts
 - **Observable** — lifecycle hooks for logging and tracing
 - **Zero external dependencies** besides [Effect](https://effect.website)
 
@@ -78,7 +78,7 @@ console.log(result.ReturnValue); // e.g. 100
 | Option | Type | Description |
 |--------|------|-------------|
 | `transaction` | `boolean` | Wrap in an editor transaction (enables undo) |
-| `timeoutMs` | `number` | Per-request timeout override |
+| `timeoutMs` | `number` | Per-request timeout override for the full request lifecycle, including queued websocket time |
 | `retry` | `RetryOptions` | Per-request retry override |
 
 ---
@@ -131,7 +131,7 @@ await ue.setProperty(path, "RelativeLocation", vector(100, 200, 300));
 |--------|------|-------------|
 | `access` | `"WRITE_ACCESS" \| "WRITE_TRANSACTION_ACCESS"` | Access mode |
 | `transaction` | `boolean` | Wrap in an editor transaction |
-| `timeoutMs` | `number` | Per-request timeout override |
+| `timeoutMs` | `number` | Per-request timeout override for the full request lifecycle, including queued websocket time |
 | `retry` | `RetryOptions` | Per-request retry override |
 
 ---

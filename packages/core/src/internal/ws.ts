@@ -53,6 +53,7 @@ interface QueuedRequest {
   readonly verb: string;
   readonly url: string;
   readonly timeoutMs: number;
+  readonly expiresAt?: number | undefined;
 }
 
 export const WebSocketTransportLive = (
@@ -70,6 +71,14 @@ export const WebSocketTransportLive = (
   const reconnectBackoffFactor = options.reconnectBackoffFactor ?? DEFAULT_RECONNECT_BACKOFF_FACTOR;
   const disconnectedBehavior = options.disconnectedBehavior ?? "queue";
   const maxQueueSize = options.maxQueueSize ?? DEFAULT_MAX_QUEUE_SIZE;
+  const createTimeoutError = (item: Pick<QueuedRequest, "timeoutMs" | "verb" | "url" | "requestId">) =>
+    new TimeoutError({
+      message: `WebSocket request timed out after ${item.timeoutMs}ms`,
+      transport: "ws",
+      verb: item.verb,
+      url: item.url,
+      requestId: item.requestId
+    });
 
   return Layer.provide(
     Layer.effect(Transport)(
@@ -229,6 +238,18 @@ export const WebSocketTransportLive = (
           Effect.gen(function* () {
             while (true) {
               const item = yield* Queue.take(outboundQueue);
+              const alreadyDone = yield* Deferred.isDone(item.deferred);
+              if (alreadyDone) {
+                continue;
+              }
+
+              const remainingTimeoutMs =
+                item.expiresAt === undefined ? undefined : Math.max(0, item.expiresAt - Date.now());
+
+              if (remainingTimeoutMs !== undefined && remainingTimeoutMs <= 0) {
+                yield* Deferred.fail(item.deferred, createTimeoutError(item));
+                continue;
+              }
 
               if (socket.readyState !== WebSocket.OPEN) {
                 yield* Deferred.fail(
@@ -258,23 +279,18 @@ export const WebSocketTransportLive = (
               // Register as pending and set up per-request timeout
               const deferred = yield* pending.add(item.requestId, item.verb, item.url);
 
-              // Wire timeout
-              yield* Effect.forkChild(
-                Effect.sleep(`${item.timeoutMs} millis`).pipe(
-                  Effect.andThen(() =>
-                    pending.reject(
-                      item.requestId,
-                      new TimeoutError({
-                        message: `WebSocket request timed out after ${item.timeoutMs}ms`,
-                        transport: "ws",
-                        verb: item.verb,
-                        url: item.url,
-                        requestId: item.requestId
-                      })
+              if (remainingTimeoutMs !== undefined) {
+                yield* Effect.forkChild(
+                  Effect.sleep(`${remainingTimeoutMs} millis`).pipe(
+                    Effect.andThen(() =>
+                      pending.reject(
+                        item.requestId,
+                        createTimeoutError(item)
+                      )
                     )
                   )
-                )
-              );
+                );
+              }
 
               // Forward resolution to the caller's deferred
               yield* Effect.forkChild(
@@ -387,6 +403,8 @@ export const WebSocketTransportLive = (
 
               const requestId = yield* pending.nextId;
               const deferred = yield* Deferred.make<TransportResponse, TransportError>();
+              const timeoutMs = req.timeoutMs ?? defaultRequestTimeoutMs;
+              const expiresAt = timeoutMs > 0 ? Date.now() + timeoutMs : undefined;
 
               const envelope: Envelope = {
                 MessageName: "http",
@@ -398,13 +416,27 @@ export const WebSocketTransportLive = (
                 }
               };
 
+              if (expiresAt !== undefined) {
+                yield* Effect.forkChild(
+                  Effect.sleep(`${timeoutMs} millis`).pipe(
+                    Effect.andThen(() => Deferred.fail(deferred, createTimeoutError({
+                      requestId,
+                      timeoutMs,
+                      verb: req.verb,
+                      url: req.url
+                    })))
+                  )
+                );
+              }
+
               const offered = yield* Queue.offer(outboundQueue, {
                 requestId,
                 envelope,
                 deferred,
                 verb: req.verb,
                 url: req.url,
-                timeoutMs: req.timeoutMs ?? defaultRequestTimeoutMs
+                timeoutMs,
+                expiresAt
               });
 
               if (!offered) {

@@ -52,9 +52,11 @@ const createFetchMock = (responses: MockResponseEntry[]) => {
 // ── Cleanup ───────────────────────────────────────────────────────────
 
 const originalFetch = globalThis.fetch;
+const originalWebSocket = globalThis.WebSocket;
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  globalThis.WebSocket = originalWebSocket;
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -71,6 +73,78 @@ const makeHttpClient = (
   } as ConstructorParameters<typeof UnrealRC>[0]);
   return { client, requests: mock.requests };
 };
+
+const installMockWebSocket = (options: { openDelayMs?: number | undefined } = {}) => {
+  const sentPayloads: string[] = [];
+  const sockets: MockWebSocket[] = [];
+
+  class MockWebSocket {
+    static readonly CONNECTING = 0;
+    static readonly OPEN = 1;
+    static readonly CLOSING = 2;
+    static readonly CLOSED = 3;
+
+    readonly url: string;
+    readyState = MockWebSocket.CONNECTING;
+    private readonly listeners = new Map<string, Set<(event?: unknown) => void>>();
+
+    constructor(url: string) {
+      this.url = url;
+      sockets.push(this);
+
+      if (options.openDelayMs !== undefined) {
+        setTimeout(() => {
+          if (this.readyState !== MockWebSocket.CONNECTING) return;
+          this.readyState = MockWebSocket.OPEN;
+          this.emit("open");
+        }, options.openDelayMs);
+      }
+    }
+
+    addEventListener(type: string, listener: (event?: unknown) => void) {
+      const listeners = this.listeners.get(type) ?? new Set<(event?: unknown) => void>();
+      listeners.add(listener);
+      this.listeners.set(type, listeners);
+    }
+
+    removeEventListener(type: string, listener: (event?: unknown) => void) {
+      this.listeners.get(type)?.delete(listener);
+    }
+
+    send(payload: string) {
+      sentPayloads.push(payload);
+    }
+
+    close() {
+      if (this.readyState === MockWebSocket.CLOSED) return;
+      this.readyState = MockWebSocket.CLOSED;
+      this.emit("close");
+    }
+
+    private emit(type: string, event?: unknown) {
+      const listeners = this.listeners.get(type);
+      if (!listeners) return;
+      for (const listener of listeners) {
+        listener(event);
+      }
+    }
+  }
+
+  globalThis.WebSocket = MockWebSocket as unknown as typeof WebSocket;
+
+  return { sentPayloads, sockets };
+};
+
+const getHttpPayloads = (sentPayloads: string[]) =>
+  sentPayloads
+    .map((payload) => {
+      try {
+        return JSON.parse(payload) as { MessageName?: string };
+      } catch {
+        return undefined;
+      }
+    })
+    .filter((payload): payload is { MessageName?: string } => payload !== undefined && payload.MessageName === "http");
 
 // ── Client tests ──────────────────────────────────────────────────────
 
@@ -355,6 +429,52 @@ describe("UnrealRC client", () => {
       "x-trace-id": "abc123",
       "content-type": "application/json"
     });
+  });
+
+  test("applies websocket request timeout while disconnected and queued", async () => {
+    const { sentPayloads } = installMockWebSocket();
+    const client = new UnrealRC({
+      transport: "ws",
+      ws: { connectTimeoutMs: 10_000 }
+    });
+
+    const start = Date.now();
+
+    await expect(
+      client.info({ timeoutMs: 50, retry: false })
+    ).rejects.toMatchObject({
+      kind: "timeout",
+      transport: "ws",
+      verb: "GET",
+      url: "/remote/info"
+    });
+
+    expect(Date.now() - start).toBeLessThan(500);
+    expect(getHttpPayloads(sentPayloads)).toHaveLength(0);
+
+    await client.dispose();
+  });
+
+  test("does not send expired queued websocket requests after reconnect", async () => {
+    const { sentPayloads } = installMockWebSocket({ openDelayMs: 100 });
+    const client = new UnrealRC({
+      transport: "ws",
+      ws: { connectTimeoutMs: 10_000, autoReconnect: false }
+    });
+
+    await expect(
+      client.info({ timeoutMs: 25, retry: false })
+    ).rejects.toMatchObject({
+      kind: "timeout",
+      transport: "ws",
+      verb: "GET",
+      url: "/remote/info"
+    });
+
+    await Bun.sleep(150);
+    expect(getHttpPayloads(sentPayloads)).toHaveLength(0);
+
+    await client.dispose();
   });
 });
 
