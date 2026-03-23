@@ -10,6 +10,9 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "verbatimModuleSyntax": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "plugins": [
+      { "name": "@effect/language-service" }
+    ]
   }
 }

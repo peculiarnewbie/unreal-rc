@@ -16,9 +16,11 @@
     "pack:core": "bun run --cwd packages/core pack:check",
     "fixture:init": "node scripts/unreal-fixture.ts init",
     "fixture:status": "node scripts/unreal-fixture.ts status",
-    "fixture:update": "node scripts/unreal-fixture.ts update"
+    "fixture:update": "node scripts/unreal-fixture.ts update",
+    "prepare": "effect-language-service patch"
   },
   "devDependencies": {
+    "@effect/language-service": "^0.82.0",
     "@types/bun": "^1.3.9",
     "@types/node": "^25.5.0",
     "@typescript/native-preview": "^7.0.0-dev.20260312.1",
