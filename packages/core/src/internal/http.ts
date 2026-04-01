@@ -13,6 +13,7 @@ export interface HttpTransportOptions {
   host?: string;
   port?: number;
   secure?: boolean;
+  passphrase?: string;
   headers?: Record<string, string>;
   requestTimeoutMs?: number;
 }
@@ -20,6 +21,7 @@ export interface HttpTransportOptions {
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 30010;
 const DEFAULT_TIMEOUT_MS = 15_000;
+const DEFAULT_HTTP_PASSPHRASE = "smh ue, this is stupid";
 const TIMEOUT_ABORT_REASON = "timeout";
 
 export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Layer<Transport> => {
@@ -28,6 +30,10 @@ export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Lay
     `${options.secure ? "https" : "http"}://${options.host ?? DEFAULT_HOST}:${options.port ?? DEFAULT_PORT}`;
   const defaultTimeoutMs = options.requestTimeoutMs ?? DEFAULT_TIMEOUT_MS;
   const headers = { ...(options.headers ?? {}) };
+  const passphrase = options.passphrase ?? DEFAULT_HTTP_PASSPHRASE;
+  if (!hasHeaderIgnoreCase(headers, "Passphrase")) {
+    headers.Passphrase = passphrase;
+  }
   const controllers = new Set<AbortController>();
 
   return Layer.succeed(Transport)({
@@ -126,6 +132,11 @@ export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Lay
       controllers.clear();
     })
   });
+};
+
+const hasHeaderIgnoreCase = (headers: Record<string, string>, name: string): boolean => {
+  const normalizedName = name.toLowerCase();
+  return Object.keys(headers).some((key) => key.toLowerCase() === normalizedName);
 };
 
 const parsePayload = async (

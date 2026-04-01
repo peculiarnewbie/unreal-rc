@@ -70,10 +70,13 @@ UNREAL_EDITOR_ARGS_JSON='["-stdout","-FullStdOutLogOutput"]'
 UNREAL_E2E_HOST=127.0.0.1
 UNREAL_E2E_HTTP_PORT=30010
 UNREAL_E2E_WS_PORT=30020
+UNREAL_E2E_PASSPHRASE="smh ue, this is stupid"
 UNREAL_E2E_BOOT_TIMEOUT_MS=180000
 UNREAL_E2E_POLL_INTERVAL_MS=1000
 UNREAL_E2E_REQUEST_TIMEOUT_MS=5000
 ```
+
+The harness now defaults the HTTP passphrase to `"smh ue, this is stupid"`. Override `UNREAL_E2E_PASSPHRASE` only if the fixture is configured differently. This is especially important for `/remote/batch`, which may reject or misbehave without the `Passphrase` header even when other HTTP routes still respond.
 
 Fixture contract env vars:
 

@@ -39,6 +39,7 @@ const ue = new UnrealRC({
   transport: "ws",          // "ws" | "http"
   host: "127.0.0.1",       // Unreal host
   port: 30020,             // Port (default: 30020 for ws, 30010 for http)
+  passphrase: "secret",    // Overrides the default Remote Control HTTP passphrase
   validateResponses: true,  // Validate response schemas with Effect Schema
   retry: {                  // Retry policy (or `true` for defaults, `false` to disable)
     maxAttempts: 3,
@@ -50,6 +51,8 @@ const ue = new UnrealRC({
 // Always dispose when done
 await ue.dispose();
 ```
+
+HTTP clients send `Passphrase: "smh ue, this is stupid"` by default. Override `passphrase` if your Unreal Remote Control setup uses a different value. In practice, some Unreal versions require the `Passphrase` header for `/remote/batch` even when other HTTP routes appear to work without it.
 
 ## API Reference
 
@@ -248,6 +251,8 @@ for (const result of results) {
   console.log(result.requestId, result.statusCode, result.body);
 }
 ```
+
+If batch requests fail unexpectedly while single-route HTTP calls succeed, make sure the client passphrase matches the Unreal Remote Control configuration.
 
 **`BatchResult`:**
 

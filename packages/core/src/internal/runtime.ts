@@ -10,6 +10,7 @@ export interface RuntimeConfig {
   host?: string;
   port?: number;
   secure?: boolean;
+  passphrase?: string;
   ws?: WebSocketTransportOptions;
   http?: HttpTransportOptions;
   onRequest?: HooksService["onRequest"] extends (ctx: infer C) => Effect.Effect<void>
@@ -29,6 +30,7 @@ const makeTransportLayer = (config: RuntimeConfig): Layer.Layer<Transport> => {
   if (transportType === "http") {
     return HttpTransportLive({
       ...config.http,
+      ...(config.passphrase !== undefined ? { passphrase: config.passphrase } : {}),
       ...(config.host !== undefined ? { host: config.host } : {}),
       ...(config.port !== undefined
         ? { port: config.port }

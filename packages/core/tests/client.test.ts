@@ -431,6 +431,62 @@ describe("UnrealRC client", () => {
     });
   });
 
+  test("maps passphrase onto the HTTP Passphrase header", async () => {
+    let requestHeaders: Record<string, string> = {};
+
+    globalThis.fetch = async (_input, init) => {
+      requestHeaders = { ...((init?.headers as Record<string, string>) ?? {}) };
+
+      return new Response(JSON.stringify({ ReturnValue: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    };
+
+    const client = new UnrealRC({
+      transport: "http",
+      passphrase: "smh ue, this is stupid",
+      http: {
+        baseUrl: "http://127.0.0.1:30010"
+      }
+    } as ConstructorParameters<typeof UnrealRC>[0]);
+
+    await client.batch((builder) => {
+      builder.request("GET", "/remote/info");
+    });
+
+    expect(requestHeaders).toMatchObject({
+      Passphrase: "smh ue, this is stupid",
+      "content-type": "application/json"
+    });
+  });
+
+  test("defaults the HTTP Passphrase header when no passphrase is configured", async () => {
+    let requestHeaders: Record<string, string> = {};
+
+    globalThis.fetch = async (_input, init) => {
+      requestHeaders = { ...((init?.headers as Record<string, string>) ?? {}) };
+
+      return new Response(JSON.stringify({ ReturnValue: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    };
+
+    const client = new UnrealRC({
+      transport: "http",
+      http: {
+        baseUrl: "http://127.0.0.1:30010"
+      }
+    });
+
+    await client.info();
+
+    expect(requestHeaders).toMatchObject({
+      Passphrase: "smh ue, this is stupid"
+    });
+  });
+
   test("applies websocket request timeout while disconnected and queued", async () => {
     const { sentPayloads } = installMockWebSocket();
     const client = new UnrealRC({

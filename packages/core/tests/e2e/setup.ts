@@ -21,6 +21,7 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 5_000;
 const PROCESS_STOP_TIMEOUT_MS = 5_000;
 const LOG_LINE_LIMIT = 200;
 const PROTOCOL_EVENT_LIMIT = 80;
+const DEFAULT_HTTP_PASSPHRASE = "smh ue, this is stupid";
 const UNIX_EDITOR_NAMES = ["UnrealEditor", "UE4Editor"];
 const WINDOWS_EDITOR_NAMES = ["UnrealEditor.exe", "UE4Editor.exe"];
 const DEFAULT_FIXTURE_MAP_NAME = "RemoteControlE2E";
@@ -38,6 +39,7 @@ export interface UnrealLaunchOptions {
   host: string;
   httpPort: number;
   wsPort: number;
+  passphrase?: string;
   bootTimeoutMs: number;
   pollIntervalMs: number;
   requestTimeoutMs: number;
@@ -117,6 +119,7 @@ export const resolveLaunchOptions = (): UnrealLaunchOptions => {
     host: process.env.UNREAL_E2E_HOST?.trim() || DEFAULT_HOST,
     httpPort: readNumberEnv("UNREAL_E2E_HTTP_PORT", DEFAULT_HTTP_PORT),
     wsPort: readNumberEnv("UNREAL_E2E_WS_PORT", DEFAULT_WS_PORT),
+    passphrase: readStringEnv("UNREAL_E2E_PASSPHRASE", DEFAULT_HTTP_PASSPHRASE),
     bootTimeoutMs: getBootTimeoutMs(),
     pollIntervalMs: readNumberEnv("UNREAL_E2E_POLL_INTERVAL_MS", DEFAULT_POLL_INTERVAL_MS),
     requestTimeoutMs: readNumberEnv("UNREAL_E2E_REQUEST_TIMEOUT_MS", DEFAULT_REQUEST_TIMEOUT_MS)
@@ -156,6 +159,7 @@ export const createProtocolClients = (
     transport: "http",
     host: options.host,
     port: options.httpPort,
+    ...(options.passphrase !== undefined ? { passphrase: options.passphrase } : {}),
     retry: false,
     onRequest: (context) => {
       diagnostics.recordRequest("http", context);
@@ -283,6 +287,7 @@ export const waitForRemoteControlHttp = async (
     transport: "http",
     host: options.host,
     port: options.httpPort,
+    ...(options.passphrase !== undefined ? { passphrase: options.passphrase } : {}),
     retry: false
   });
 
@@ -328,11 +333,15 @@ export const waitForRemoteControlWs = async (
 };
 
 const requestEditorExit = async (host: string, httpPort: number): Promise<void> => {
+  const passphrase = readStringEnv("UNREAL_E2E_PASSPHRASE", DEFAULT_HTTP_PASSPHRASE);
   const url = `http://${host}:${httpPort}/remote/object/call`;
   try {
     await fetch(url, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(passphrase !== undefined ? { Passphrase: passphrase } : {})
+      },
       body: JSON.stringify({
         objectPath: "/Script/Engine.Default__KismetSystemLibrary",
         functionName: "QuitEditor"
