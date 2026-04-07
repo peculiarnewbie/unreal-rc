@@ -1,0 +1,74 @@
+---
+title: unreal-rc
+description: Typed TypeScript client for Unreal Engine Remote Control over WebSocket or HTTP.
+template: splash
+hero:
+  tagline: Transport-agnostic, type-safe TypeScript client for controlling Unreal Engine over WebSocket or HTTP.
+  actions:
+    - text: Getting Started
+      link: /guides/getting-started/
+      icon: right-arrow
+    - text: API Reference
+      link: /api/
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+`unreal-rc` wraps Unreal Engine's [Remote Control](https://dev.epicgames.com/documentation/en-us/unreal-engine/remote-control-for-unreal-engine) plugin with a typed TypeScript client. Call functions on remote UObjects, read and write properties, describe actors, search assets, and subscribe to events — all from a single `UnrealRC` instance.
+
+```bash
+npm install unreal-rc
+```
+
+```ts
+import { UnrealRC } from "unreal-rc";
+
+const ue = new UnrealRC();
+
+// Call a Blueprint function
+await ue.call(
+  "/Game/Maps/Main.Main:PersistentLevel.MyActor",
+  "SetActorHiddenInGame",
+  { bNewHidden: false }
+);
+
+// Read a property
+const { PropertyValue } = await ue.getProperty(
+  "/Game/Maps/Main.Main:PersistentLevel.MyActor",
+  "ActorLabel"
+);
+
+// Dispose when done
+await ue.dispose();
+```
+
+## Scope
+
+In scope:
+
+- Call functions on remote UObjects with typed parameters
+- Read and write properties on actors and components
+- Describe actor metadata and function signatures
+- Search project assets by class and path
+- Subscribe to property and event change notifications (WebSocket)
+- Batch multiple operations into a single request
+- Fetch actor thumbnails
+
+Out of scope:
+
+- Editor workflow automation (sequencer, level streaming, build pipelines)
+- Asset import/export or content browser manipulation
+- Server or session management
+
+<CardGrid stagger>
+  <Card title="Start With Guides" icon="open-book">
+    Walk through installation, client setup, and common workflows.
+  </Card>
+  <Card title="Browse Typed API" icon="seti:typescript">
+    Generated API docs come directly from the public TypeScript entrypoint.
+  </Card>
+  <Card title="Resilient by Default" icon="lightbulb">
+    Auto-reconnect, configurable retries, per-request timeouts, and lifecycle hooks for observability.
+  </Card>
+</CardGrid>
