@@ -1,0 +1,114 @@
+---
+title: Getting Started
+description: Install unreal-rc and connect to a running Unreal Engine instance.
+---
+
+## Prerequisites
+
+Enable the **Remote Control** plugin in your Unreal project:
+
+1. Open **Edit > Plugins**
+2. Search for **Remote Control**
+3. Enable the plugin and restart the editor
+
+The plugin exposes two localhost endpoints:
+
+| Protocol  | Default Port |
+| --------- | ------------ |
+| HTTP      | `30010`      |
+| WebSocket | `30020`      |
+
+## Install
+
+```bash
+npm install unreal-rc
+```
+
+## Creating a Client
+
+```ts
+import { UnrealRC } from "unreal-rc";
+
+// WebSocket (default) — persistent connection with auto-reconnect
+const ue = new UnrealRC();
+
+// HTTP — stateless fetch-based requests
+const ue = new UnrealRC({ transport: "http" });
+
+// Full options
+const ue = new UnrealRC({
+  transport: "ws",
+  host: "127.0.0.1",
+  port: 30020,
+  validateResponses: true,
+  retry: {
+    maxAttempts: 3,
+    delayMs: 100,
+    shouldRetry: (ctx) => ctx.error.kind !== "decode",
+  },
+});
+```
+
+Always dispose the client when you're done:
+
+```ts
+await ue.dispose();
+```
+
+## Calling Functions
+
+```ts
+await ue.call(
+  "/Game/Maps/Main.Main:PersistentLevel.MyActor",
+  "SetActorHiddenInGame",
+  { bNewHidden: false }
+);
+```
+
+## Reading and Writing Properties
+
+```ts
+// Read
+const { PropertyValue } = await ue.getProperty(
+  "/Game/Maps/Main.Main:PersistentLevel.MyActor",
+  "ActorLabel"
+);
+
+// Write
+await ue.setProperty(
+  "/Game/Maps/Main.Main:PersistentLevel.MyActor",
+  "ActorLabel",
+  "NewLabel"
+);
+```
+
+## Describing Objects
+
+```ts
+const desc = await ue.describe(
+  "/Game/Maps/Main.Main:PersistentLevel.MyActor"
+);
+console.log(desc.Properties); // property metadata
+console.log(desc.Functions);  // callable function signatures
+```
+
+## Searching Assets
+
+```ts
+const results = await ue.searchAssets({
+  query: "Chair",
+  filter: { classNames: ["/Script/Engine.StaticMesh"] },
+});
+```
+
+## Batch Requests
+
+Combine multiple operations into a single round-trip:
+
+```ts
+const results = await ue.batch((b) => {
+  b.call("/Game/Maps/Main.Main:PersistentLevel.ActorA", "GetHealth");
+  b.call("/Game/Maps/Main.Main:PersistentLevel.ActorB", "GetHealth");
+  b.getProperty("/Game/Maps/Main.Main:PersistentLevel.ActorA", "ActorLabel");
+});
+```
