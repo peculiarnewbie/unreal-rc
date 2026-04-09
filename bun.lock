@@ -15,6 +15,12 @@
     "packages/codegen": {
       "name": "@unreal-rc/codegen",
       "version": "0.0.0",
+      "bin": {
+        "unreal-rc-codegen": "./src/cli.ts",
+      },
+      "dependencies": {
+        "effect": "4.0.0-beta.37",
+      },
     },
     "packages/core": {
       "name": "unreal-rc",
