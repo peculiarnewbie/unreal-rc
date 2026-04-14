@@ -7,7 +7,9 @@ export type {
   ErrorHookContext,
   EventOptions,
   GetPropertyOptions,
+  HealthWatcher,
   PayloadRedactionContext,
+  PingOptions,
   RequestHookContext,
   ResponseHookContext,
   RetryContext,
@@ -16,7 +18,8 @@ export type {
   SearchAssetsOptions,
   SetPropertyOptions,
   ThumbnailOptions,
-  UnrealRCOptions
+  UnrealRCOptions,
+  WatchHealthOptions
 } from "./client.js";
 
 // ── Batch ──────────────────────────────────────────────────────────────
@@ -58,6 +61,7 @@ export type {
   BatchResponseItem,
   FunctionArgument,
   FunctionMetadata,
+  HealthStatus,
   HttpVerb,
   InfoResponse,
   ObjectCallRequest,
@@ -70,6 +74,8 @@ export type {
   ObjectPropertyResponse,
   ObjectThumbnailRequest,
   ObjectThumbnailResponse,
+  PendingRequestInfo,
+  PingResult,
   PropertyMetadata,
   RouteInfo,
   SearchAssetsRequest,
@@ -110,4 +116,4 @@ export {
 export { HttpTransportLive } from "../internal/http.js";
 export type { HttpTransportOptions } from "../internal/http.js";
 export { WebSocketTransportLive } from "../internal/ws.js";
-export type { WebSocketTransportOptions } from "../internal/ws.js";
+export type { DisconnectInfo, WebSocketTransportOptions } from "../internal/ws.js";

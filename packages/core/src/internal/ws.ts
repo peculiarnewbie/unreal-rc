@@ -6,9 +6,15 @@ import {
   TimeoutError,
   type TransportError
 } from "./errors.js";
-import { Transport, type TransportRequest, type TransportResponse } from "./transport.js";
+import { Transport, type PendingRequestInfo, type TransportRequest, type TransportResponse } from "./transport.js";
 import { heartbeat } from "./heartbeat.js";
 import { PendingRequests, PendingRequestsLive } from "./correlation.js";
+
+export interface DisconnectInfo {
+  readonly code: number | undefined;
+  readonly reason: string | undefined;
+  readonly wasClean: boolean | undefined;
+}
 
 export interface WebSocketTransportOptions {
   baseUrl?: string;
@@ -24,6 +30,8 @@ export interface WebSocketTransportOptions {
   reconnectBackoffFactor?: number;
   disconnectedBehavior?: "queue" | "reject";
   maxQueueSize?: number;
+  onDisconnect?: ((info: DisconnectInfo) => void) | undefined;
+  onReconnect?: (() => void) | undefined;
 }
 
 const DEFAULT_HOST = "127.0.0.1";
@@ -71,6 +79,8 @@ export const WebSocketTransportLive = (
   const reconnectBackoffFactor = options.reconnectBackoffFactor ?? DEFAULT_RECONNECT_BACKOFF_FACTOR;
   const disconnectedBehavior = options.disconnectedBehavior ?? "queue";
   const maxQueueSize = options.maxQueueSize ?? DEFAULT_MAX_QUEUE_SIZE;
+  const onDisconnect = options.onDisconnect;
+  const onReconnect = options.onReconnect;
   const createTimeoutError = (item: Pick<QueuedRequest, "timeoutMs" | "verb" | "url" | "requestId">) =>
     new TimeoutError({
       message: `WebSocket request timed out after ${item.timeoutMs}ms`,
@@ -89,6 +99,7 @@ export const WebSocketTransportLive = (
         const connectedRef = yield* Ref.make(false);
         const disposedRef = yield* Ref.make(false);
         const connectionFiber = yield* Ref.make<Fiber.Fiber<void, TransportError> | undefined>(undefined);
+        const hasConnectedBefore = yield* Ref.make(false);
 
         // ── Connect once ──────────────────────────────────────────────
 
@@ -207,7 +218,10 @@ export const WebSocketTransportLive = (
 
         // ── Message listener fiber ─────────────────────────────────────
 
-        const messageLoop = (socket: WebSocket): Effect.Effect<void, TransportError> =>
+        const messageLoop = (
+          socket: WebSocket,
+          closeInfo: { code: number | undefined; reason: string | undefined; wasClean: boolean | undefined }
+        ): Effect.Effect<void, TransportError> =>
           Effect.callback<void, TransportError>((resume) => {
             const onMessage = (event: MessageEvent) => {
               const raw = decodeMessage(event);
@@ -216,8 +230,14 @@ export const WebSocketTransportLive = (
               }
             };
 
-            const onClose = () => {
+            const onClose = (event: unknown) => {
               socket.removeEventListener("message", onMessage);
+              if (event && typeof event === "object") {
+                const ce = event as { code?: unknown; reason?: unknown; wasClean?: unknown };
+                closeInfo.code = typeof ce.code === "number" ? ce.code : undefined;
+                closeInfo.reason = typeof ce.reason === "string" ? ce.reason : undefined;
+                closeInfo.wasClean = typeof ce.wasClean === "boolean" ? ce.wasClean : undefined;
+              }
               resume(
                 Effect.fail(
                   new DisconnectError({
@@ -229,7 +249,7 @@ export const WebSocketTransportLive = (
             };
 
             socket.addEventListener("message", onMessage);
-            socket.addEventListener("close", onClose, { once: true });
+            socket.addEventListener("close", onClose as EventListener, { once: true });
           });
 
         // ── Queue drainer ──────────────────────────────────────────────
@@ -277,7 +297,7 @@ export const WebSocketTransportLive = (
               }
 
               // Register as pending and set up per-request timeout
-              const deferred = yield* pending.add(item.requestId, item.verb, item.url);
+              const deferred = yield* pending.add(item.requestId, item.verb, item.url, Date.now(), item.timeoutMs);
 
               if (remainingTimeoutMs !== undefined) {
                 yield* Effect.forkChild(
@@ -311,6 +331,19 @@ export const WebSocketTransportLive = (
           yield* Ref.set(socketRef, socket);
           yield* Ref.set(connectedRef, true);
 
+          // Fire onReconnect if this is not the first connection
+          const wasConnectedBefore = yield* Ref.get(hasConnectedBefore);
+          if (wasConnectedBefore && onReconnect) {
+            try { onReconnect(); } catch { /* ignore hook errors */ }
+          }
+          yield* Ref.set(hasConnectedBefore, true);
+
+          const closeInfo: { code: number | undefined; reason: string | undefined; wasClean: boolean | undefined } = {
+            code: undefined,
+            reason: undefined,
+            wasClean: undefined
+          };
+
           const sendPing = (data: string) =>
             Effect.sync(() => {
               if (socket.readyState === WebSocket.OPEN) {
@@ -327,7 +360,7 @@ export const WebSocketTransportLive = (
           yield* Effect.all(
             [
               pingIntervalMs > 0 ? heartbeat(sendPing, pingIntervalMs) : Effect.never,
-              messageLoop(socket),
+              messageLoop(socket, closeInfo),
               drainQueue(socket)
             ],
             { concurrency: "unbounded" }
@@ -339,6 +372,18 @@ export const WebSocketTransportLive = (
                 Effect.gen(function* () {
                   yield* Ref.set(connectedRef, false);
                   yield* Ref.set(socketRef, undefined);
+
+                  // Fire onDisconnect hook
+                  if (onDisconnect) {
+                    try {
+                      onDisconnect({
+                        code: closeInfo.code,
+                        reason: closeInfo.reason ?? "WebSocket disconnected",
+                        wasClean: closeInfo.wasClean
+                      });
+                    } catch { /* ignore hook errors */ }
+                  }
+
                   yield* pending.rejectAll(
                     new DisconnectError({
                       message: "WebSocket disconnected",
@@ -450,6 +495,18 @@ export const WebSocketTransportLive = (
 
               return yield* Deferred.await(deferred);
             }),
+
+          pendingRequests: Effect.gen(function* () {
+            const now = Date.now();
+            const entries = yield* pending.snapshot;
+            return entries.map((e): PendingRequestInfo => ({
+              requestId: e.requestId,
+              verb: e.verb,
+              url: e.url,
+              elapsedMs: now - e.startedAt,
+              timeoutMs: e.timeoutMs
+            }));
+          }),
 
           dispose: Effect.gen(function* () {
             yield* Ref.set(disposedRef, true);

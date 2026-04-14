@@ -6,7 +6,9 @@ import {
   buildBatchRequest,
   buildCallRequest,
   buildDescribeRequest,
-  buildPropertyRequest
+  buildPropertyRequest,
+  type HealthStatus,
+  type PingResult
 } from "../src/index.js";
 
 // ── Fetch mock helpers ────────────────────────────────────────────────
@@ -606,5 +608,338 @@ describe("BatchBuilder and protocol builders", () => {
         }
       ]
     });
+  });
+});
+
+// ── Health detection tests ────────────────────────────────────────────
+
+describe("ping", () => {
+  test("returns reachable true with latency on success", async () => {
+    const { client } = makeHttpClient([
+      { body: {}, statusCode: 200 }
+    ]);
+
+    const result = await client.ping();
+
+    expect(result.reachable).toBe(true);
+    expect(typeof result.latencyMs).toBe("number");
+    expect(result.latencyMs).toBeGreaterThanOrEqual(0);
+  });
+
+  test("returns reachable false on transport failure", async () => {
+    const { client } = makeHttpClient([new Error("connection refused")]);
+
+    const result = await client.ping();
+
+    expect(result.reachable).toBe(false);
+    expect(result.latencyMs).toBeUndefined();
+  });
+
+  test("returns reachable false on HTTP error status", async () => {
+    const { client } = makeHttpClient([
+      { body: { message: "busy" }, statusCode: 503 }
+    ]);
+
+    const result = await client.ping();
+
+    expect(result.reachable).toBe(false);
+    expect(result.latencyMs).toBeUndefined();
+  });
+
+  test("does not fire hooks", async () => {
+    const hookCalls: string[] = [];
+
+    const { client } = makeHttpClient(
+      [{ body: {}, statusCode: 200 }],
+      {
+        onRequest: () => { hookCalls.push("request"); },
+        onResponse: () => { hookCalls.push("response"); },
+        onError: () => { hookCalls.push("error"); }
+      }
+    );
+
+    await client.ping();
+
+    expect(hookCalls).toHaveLength(0);
+  });
+
+  test("respects custom timeout", async () => {
+    const { client, requests } = makeHttpClient([
+      { body: {}, statusCode: 200 }
+    ]);
+
+    const result = await client.ping({ timeoutMs: 500 });
+
+    expect(result.reachable).toBe(true);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toContain("/remote/info");
+    expect(requests[0]?.method).toBe("GET");
+  });
+
+  test("never throws regardless of error type", async () => {
+    const { client: client1 } = makeHttpClient([new TypeError("fetch failed")]);
+    const { client: client2 } = makeHttpClient([new Error("ECONNREFUSED")]);
+    const { client: client3 } = makeHttpClient([{ body: {}, statusCode: 500 }]);
+
+    const [r1, r2, r3] = await Promise.all([
+      client1.ping(),
+      client2.ping(),
+      client3.ping()
+    ]);
+
+    expect(r1.reachable).toBe(false);
+    expect(r2.reachable).toBe(false);
+    expect(r3.reachable).toBe(false);
+  });
+});
+
+describe("watchHealth", () => {
+  test("transitions from unhealthy to healthy on first success", async () => {
+    const statuses: HealthStatus[] = [];
+    const { client } = makeHttpClient(
+      Array.from({ length: 10 }, () => ({ body: {}, statusCode: 200 }))
+    );
+
+    const watcher = client.watchHealth({
+      intervalMs: 10,
+      onChange: (status) => { statuses.push({ ...status }); }
+    });
+
+    await Bun.sleep(100);
+    watcher.dispose();
+
+    expect(statuses.length).toBeGreaterThanOrEqual(1);
+    expect(statuses[0]?.healthy).toBe(true);
+    expect(statuses[0]?.consecutiveFailures).toBe(0);
+    expect(statuses[0]?.lastSeen).toBeInstanceOf(Date);
+  });
+
+  test("transitions from healthy to unhealthy after consecutive failures", async () => {
+    const statuses: HealthStatus[] = [];
+
+    // First response succeeds, then all fail
+    const { client } = makeHttpClient([
+      { body: {}, statusCode: 200 },
+      new Error("down"),
+      new Error("down"),
+      new Error("down"),
+      new Error("down")
+    ]);
+
+    const watcher = client.watchHealth({
+      intervalMs: 10,
+      unhealthyAfter: 2,
+      onChange: (status) => { statuses.push({ ...status }); }
+    });
+
+    await Bun.sleep(200);
+    watcher.dispose();
+
+    // Should have: unhealthy->healthy transition, then healthy->unhealthy transition
+    expect(statuses.length).toBeGreaterThanOrEqual(2);
+    expect(statuses[0]?.healthy).toBe(true);
+    expect(statuses[1]?.healthy).toBe(false);
+    expect(statuses[1]!.consecutiveFailures).toBeGreaterThanOrEqual(2);
+  });
+
+  test("does not fire onChange on every tick when status is stable", async () => {
+    const statuses: HealthStatus[] = [];
+    const { client } = makeHttpClient(
+      Array.from({ length: 20 }, () => ({ body: {}, statusCode: 200 }))
+    );
+
+    const watcher = client.watchHealth({
+      intervalMs: 10,
+      onChange: (status) => { statuses.push({ ...status }); }
+    });
+
+    await Bun.sleep(200);
+    watcher.dispose();
+
+    // Should only fire once for the unhealthy->healthy transition
+    expect(statuses).toHaveLength(1);
+    expect(statuses[0]?.healthy).toBe(true);
+  });
+
+  test("status() returns current snapshot", async () => {
+    const { client } = makeHttpClient(
+      Array.from({ length: 10 }, () => ({ body: {}, statusCode: 200 }))
+    );
+
+    const watcher = client.watchHealth({ intervalMs: 10 });
+
+    // Initially unhealthy
+    const initial = watcher.status();
+    expect(initial.healthy).toBe(false);
+    expect(initial.consecutiveFailures).toBe(0);
+
+    await Bun.sleep(100);
+
+    // After pings succeed
+    const updated = watcher.status();
+    expect(updated.healthy).toBe(true);
+    expect(updated.consecutiveFailures).toBe(0);
+    expect(updated.lastSeen).toBeInstanceOf(Date);
+
+    watcher.dispose();
+  });
+
+  test("dispose stops polling", async () => {
+    let pingCount = 0;
+    const originalFetchInner = globalThis.fetch;
+
+    const { client } = makeHttpClient(
+      Array.from({ length: 50 }, () => ({ body: {}, statusCode: 200 }))
+    );
+
+    // Wrap fetch to count calls
+    const wrappedFetch = globalThis.fetch;
+    globalThis.fetch = async (...args: Parameters<typeof fetch>) => {
+      pingCount++;
+      return wrappedFetch(...args);
+    };
+
+    const watcher = client.watchHealth({ intervalMs: 10 });
+
+    await Bun.sleep(80);
+    watcher.dispose();
+
+    const countAtDispose = pingCount;
+    await Bun.sleep(100);
+
+    // No more pings after dispose
+    expect(pingCount).toBe(countAtDispose);
+  });
+});
+
+describe("pendingRequests", () => {
+  test("returns empty array when no requests are pending", async () => {
+    const { client } = makeHttpClient([]);
+
+    const pending = await client.pendingRequests();
+
+    expect(pending).toEqual([]);
+  });
+
+  test("returns pending HTTP requests with timing info", async () => {
+    // Create a fetch that delays
+    let resolveDelay: (() => void) | undefined;
+    const delayPromise = new Promise<void>((resolve) => { resolveDelay = resolve; });
+
+    globalThis.fetch = async () => {
+      await delayPromise;
+      return new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      });
+    };
+
+    const client = new UnrealRC({
+      transport: "http",
+      http: { baseUrl: "http://127.0.0.1:30010" }
+    });
+
+    // Start a request but don't await it
+    const infoPromise = client.info({ retry: false });
+
+    await Bun.sleep(50);
+
+    const pending = await client.pendingRequests();
+
+    expect(pending.length).toBe(1);
+    expect(pending[0]?.verb).toBe("GET");
+    expect(pending[0]?.url).toContain("/remote/info");
+    expect(pending[0]?.elapsedMs).toBeGreaterThanOrEqual(0);
+    expect(typeof pending[0]?.timeoutMs).toBe("number");
+
+    // Clean up
+    resolveDelay!();
+    await infoPromise;
+    await client.dispose();
+  });
+});
+
+describe("onDisconnect and onReconnect", () => {
+  test("fires onDisconnect when WebSocket closes", async () => {
+    const disconnects: unknown[] = [];
+    const { sockets } = installMockWebSocket({ openDelayMs: 5 });
+
+    const client = new UnrealRC({
+      transport: "ws",
+      ws: { connectTimeoutMs: 5000, autoReconnect: false },
+      onDisconnect: (info) => { disconnects.push(info); }
+    });
+
+    // Trigger runtime initialization by starting a request (won't complete — mock doesn't respond)
+    const pendingRequest = client.info({ timeoutMs: 5000, retry: false }).catch(() => {});
+
+    // Wait for socket to open
+    await Bun.sleep(50);
+    expect(sockets.length).toBeGreaterThanOrEqual(1);
+
+    // Close the socket (rejects pending request + fires onDisconnect)
+    sockets[0]!.close();
+
+    await Bun.sleep(50);
+
+    expect(disconnects.length).toBe(1);
+
+    await pendingRequest;
+    await client.dispose().catch(() => {});
+  });
+
+  test("fires onReconnect on second connection but not first", async () => {
+    const reconnects: number[] = [];
+    const disconnects: unknown[] = [];
+    const { sockets } = installMockWebSocket({ openDelayMs: 5 });
+
+    const client = new UnrealRC({
+      transport: "ws",
+      ws: {
+        connectTimeoutMs: 5000,
+        autoReconnect: true,
+        reconnectInitialDelayMs: 10,
+        reconnectMaxDelayMs: 20
+      },
+      onDisconnect: (info) => { disconnects.push(info); },
+      onReconnect: () => { reconnects.push(Date.now()); }
+    });
+
+    // Trigger runtime initialization (short timeout so it doesn't block on reconnect)
+    const pendingRequest = client.info({ timeoutMs: 200, retry: false }).catch(() => {});
+
+    // Wait for first connection
+    await Bun.sleep(50);
+    expect(reconnects).toHaveLength(0);
+
+    // Close first socket to trigger reconnect
+    sockets[0]!.close();
+    await Bun.sleep(150);
+
+    // After reconnection, onReconnect should have fired
+    expect(reconnects.length).toBeGreaterThanOrEqual(1);
+    expect(disconnects.length).toBeGreaterThanOrEqual(1);
+
+    await pendingRequest;
+    await client.dispose().catch(() => {});
+  });
+
+  test("does not error for HTTP transport with lifecycle hooks", async () => {
+    const disconnects: unknown[] = [];
+    const reconnects: number[] = [];
+
+    const { client } = makeHttpClient(
+      [{ body: {}, statusCode: 200 }],
+      {
+        onDisconnect: (info: unknown) => { disconnects.push(info); },
+        onReconnect: () => { reconnects.push(Date.now()); }
+      }
+    );
+
+    await client.info();
+
+    // Hooks should never fire for HTTP
+    expect(disconnects).toHaveLength(0);
+    expect(reconnects).toHaveLength(0);
   });
 });

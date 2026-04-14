@@ -32,6 +32,7 @@ import { toPublicError, TransportRequestError } from "./errors.js";
 import { parseReturnValue } from "./helpers.js";
 import type {
   AccessMode,
+  HealthStatus,
   HttpVerb,
   ObjectCallResponse,
   ObjectDescribeResponse,
@@ -39,6 +40,8 @@ import type {
   ObjectEventResponse,
   ObjectPropertyResponse,
   ObjectThumbnailResponse,
+  PendingRequestInfo,
+  PingResult,
   SearchAssetsRequest,
   SearchAssetsResponse,
   InfoResponse,
@@ -121,6 +124,24 @@ export interface BatchOptions extends RequestOptionsBase {}
 export interface EventOptions extends RequestOptionsBase {}
 
 export interface ThumbnailOptions extends RequestOptionsBase {}
+
+// ── Health detection option types ─────────────────────────────────────
+
+export interface PingOptions {
+  timeoutMs?: number | undefined;
+}
+
+export interface WatchHealthOptions {
+  intervalMs?: number | undefined;
+  unhealthyAfter?: number | undefined;
+  timeoutMs?: number | undefined;
+  onChange?: ((status: HealthStatus) => void) | undefined;
+}
+
+export interface HealthWatcher {
+  readonly status: () => HealthStatus;
+  readonly dispose: () => void;
+}
 
 // ── Default retry ──────────────────────────────────────────────────────
 
@@ -262,6 +283,97 @@ export class UnrealRC {
     return correlateBatchResponses(requests, response);
   }
 
+  // ── Health detection ─────────────────────────────────────────────────
+
+  async ping(options?: PingOptions): Promise<PingResult> {
+    const timeoutMs = options?.timeoutMs ?? 2000;
+    try {
+      const { latencyMs } = await this.sendRaw("GET", "/remote/info", undefined, timeoutMs);
+      return { reachable: true, latencyMs };
+    } catch {
+      return { reachable: false, latencyMs: undefined };
+    }
+  }
+
+  watchHealth(options?: WatchHealthOptions): HealthWatcher {
+    const intervalMs = options?.intervalMs ?? 5000;
+    const unhealthyAfter = Math.max(1, options?.unhealthyAfter ?? 2);
+    const pingTimeoutMs = options?.timeoutMs ?? 2000;
+    const onChange = options?.onChange;
+
+    let currentStatus: HealthStatus = {
+      healthy: false,
+      latencyMs: undefined,
+      consecutiveFailures: 0,
+      lastSeen: undefined
+    };
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const tick = async (): Promise<void> => {
+      if (disposed) return;
+
+      const result = await this.ping({ timeoutMs: pingTimeoutMs });
+      if (disposed) return;
+
+      const previousHealthy = currentStatus.healthy;
+
+      if (result.reachable) {
+        const nextStatus: HealthStatus = {
+          healthy: true,
+          latencyMs: result.latencyMs,
+          consecutiveFailures: 0,
+          lastSeen: new Date()
+        };
+        currentStatus = nextStatus;
+
+        if (!previousHealthy) {
+          onChange?.(currentStatus);
+        }
+      } else {
+        const nextFailures = currentStatus.consecutiveFailures + 1;
+        const nextHealthy = nextFailures < unhealthyAfter;
+        const nextStatus: HealthStatus = {
+          healthy: nextHealthy,
+          latencyMs: undefined,
+          consecutiveFailures: nextFailures,
+          lastSeen: currentStatus.lastSeen
+        };
+        currentStatus = nextStatus;
+
+        if (previousHealthy && !nextHealthy) {
+          onChange?.(currentStatus);
+        }
+      }
+
+      if (!disposed) {
+        timer = setTimeout(() => { tick().catch(() => {}); }, intervalMs);
+      }
+    };
+
+    // Start the first tick immediately
+    timer = setTimeout(() => { tick().catch(() => {}); }, 0);
+
+    return {
+      status: () => currentStatus,
+      dispose: () => {
+        disposed = true;
+        if (timer !== undefined) {
+          clearTimeout(timer);
+          timer = undefined;
+        }
+      }
+    };
+  }
+
+  async pendingRequests(): Promise<readonly PendingRequestInfo[]> {
+    return this.runtime.runPromise(
+      Transport.use((transport) => transport.pendingRequests)
+    );
+  }
+
+  // ── Lifecycle ───────────────────────────────────────────────────────
+
   async dispose(): Promise<void> {
     await this.runtime.runPromise(
       Transport.use((transport) => transport.dispose)
@@ -270,6 +382,17 @@ export class UnrealRC {
   }
 
   // ── Internal ─────────────────────────────────────────────────────────
+
+  private async sendRaw(
+    verb: string,
+    url: string,
+    body: unknown,
+    timeoutMs: number | undefined
+  ): Promise<{ latencyMs: number }> {
+    const startTime = Date.now();
+    await this.runtime.runPromise(sendRequest({ verb, url, body, timeoutMs }));
+    return { latencyMs: Date.now() - startTime };
+  }
 
   private async send<T>(
     verb: string,

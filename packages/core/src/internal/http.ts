@@ -6,7 +6,7 @@ import {
   TimeoutError,
   type TransportError
 } from "./errors.js";
-import { Transport, type TransportRequest, type TransportResponse } from "./transport.js";
+import { Transport, type PendingRequestInfo, type TransportRequest, type TransportResponse } from "./transport.js";
 
 export interface HttpTransportOptions {
   baseUrl?: string;
@@ -34,7 +34,16 @@ export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Lay
   if (!hasHeaderIgnoreCase(headers, "Passphrase")) {
     headers.Passphrase = passphrase;
   }
-  const controllers = new Set<AbortController>();
+  interface ActiveHttpRequest {
+    readonly controller: AbortController;
+    readonly verb: string;
+    readonly url: string;
+    readonly startedAt: number;
+    readonly timeoutMs: number;
+  }
+
+  let nextRequestId = 1;
+  const activeRequests = new Map<number, ActiveHttpRequest>();
 
   return Layer.succeed(Transport)({
     name: "http",
@@ -44,8 +53,15 @@ export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Lay
         const controller = new AbortController();
         const timeoutMs = req.timeoutMs ?? defaultTimeoutMs;
         let timer: ReturnType<typeof setTimeout> | undefined;
+        const requestId = nextRequestId++;
 
-        controllers.add(controller);
+        activeRequests.set(requestId, {
+          controller,
+          verb: req.verb,
+          url: req.url,
+          startedAt: Date.now(),
+          timeoutMs
+        });
 
         if (timeoutMs > 0) {
           timer = setTimeout(() => {
@@ -115,7 +131,7 @@ export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Lay
             });
           } finally {
             if (timer) clearTimeout(timer);
-            controllers.delete(controller);
+            activeRequests.delete(requestId);
           }
         };
 
@@ -125,11 +141,22 @@ export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Lay
         );
       }),
 
+    pendingRequests: Effect.sync((): ReadonlyArray<PendingRequestInfo> => {
+      const now = Date.now();
+      return [...activeRequests.values()].map((e): PendingRequestInfo => ({
+        requestId: undefined,
+        verb: e.verb,
+        url: e.url,
+        elapsedMs: now - e.startedAt,
+        timeoutMs: e.timeoutMs
+      }));
+    }),
+
     dispose: Effect.sync(() => {
-      for (const controller of controllers) {
+      for (const { controller } of activeRequests.values()) {
         controller.abort("dispose");
       }
-      controllers.clear();
+      activeRequests.clear();
     })
   });
 };

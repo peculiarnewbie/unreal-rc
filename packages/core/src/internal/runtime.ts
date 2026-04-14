@@ -3,7 +3,7 @@ import { Transport, type TransportRequest, type TransportResponse } from "./tran
 import type { TransportError } from "./errors.js";
 import { Hooks, HooksLive, HooksNoop, type HooksService } from "./hooks.js";
 import { HttpTransportLive, type HttpTransportOptions } from "./http.js";
-import { WebSocketTransportLive, type WebSocketTransportOptions } from "./ws.js";
+import { WebSocketTransportLive, type DisconnectInfo, type WebSocketTransportOptions } from "./ws.js";
 
 export interface RuntimeConfig {
   transport?: "ws" | "http" | undefined;
@@ -19,6 +19,8 @@ export interface RuntimeConfig {
   onResponse?: Parameters<typeof HooksLive>[0]["onResponse"];
   onError?: Parameters<typeof HooksLive>[0]["onError"];
   redactPayload?: Parameters<typeof HooksLive>[0]["redactPayload"];
+  onDisconnect?: ((info: DisconnectInfo) => void) | undefined;
+  onReconnect?: (() => void) | undefined;
 }
 
 const DEFAULT_WS_PORT = 30020;
@@ -45,7 +47,11 @@ const makeTransportLayer = (config: RuntimeConfig): Layer.Layer<Transport> => {
     ...(config.port !== undefined
       ? { port: config.port }
       : { port: config.ws?.port ?? DEFAULT_WS_PORT }),
-    ...(config.secure !== undefined ? { secure: config.secure } : {})
+    ...(config.secure !== undefined ? { secure: config.secure } : {}),
+    ...(config.onDisconnect !== undefined && config.ws?.onDisconnect === undefined
+      ? { onDisconnect: config.onDisconnect } : {}),
+    ...(config.onReconnect !== undefined && config.ws?.onReconnect === undefined
+      ? { onReconnect: config.onReconnect } : {})
   });
 };
 

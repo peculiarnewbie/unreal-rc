@@ -161,3 +161,25 @@ export type TransportRequestErrorKind =
   | "remote_status"
   | "decode"
   | "unknown";
+
+// ── Health detection ──────────────────────────────────────────────────
+
+export interface PingResult {
+  readonly reachable: boolean;
+  readonly latencyMs: number | undefined;
+}
+
+export interface HealthStatus {
+  readonly healthy: boolean;
+  readonly latencyMs: number | undefined;
+  readonly consecutiveFailures: number;
+  readonly lastSeen: Date | undefined;
+}
+
+export interface PendingRequestInfo {
+  readonly requestId: number | string | undefined;
+  readonly verb: string;
+  readonly url: string;
+  readonly elapsedMs: number;
+  readonly timeoutMs: number | undefined;
+}
