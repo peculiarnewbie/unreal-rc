@@ -6,12 +6,12 @@ Typed TypeScript client for Unreal Engine's [Remote Control](https://dev.epicgam
 - **Type-safe** — Effect Schema validation on request and response payloads
 - **Resilient** — auto-reconnect, configurable retries, end-to-end request timeouts
 - **Observable** — lifecycle hooks for logging and tracing
-- **Single runtime dependency**: [Effect](https://effect.website)
+- **Effect-powered** — bring your own compatible [Effect](https://effect.website) version
 
 ## Install
 
 ```bash
-npm install unreal-rc
+npm install unreal-rc effect
 ```
 
 ## Setup
