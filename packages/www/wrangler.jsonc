@@ -1,9 +1,22 @@
 {
-  "name": "unreal-rc",
-  "compatibility_date": "2026-03-31",
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "unreal-rc-www",
+  "main": "src/worker.ts",
+  "compatibility_date": "2025-04-01",
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
-    "directory": "./dist",
-    "html_handling": "auto-trailing-slash",
-    "not_found_handling": "404-page"
-  }
+    "directory": "dist/client",
+    "binding": "ASSETS",
+    "html_handling": "none",
+    "not_found_handling": "none"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "routes": [
+    {
+      "pattern": "unreal-rc.peculiarnewbie.com",
+      "custom_domain": true
+    }
+  ]
 }
