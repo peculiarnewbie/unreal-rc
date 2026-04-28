@@ -1,66 +1,298 @@
+import { highlight } from "sugar-high";
+
+const NPM_URL = "https://www.npmjs.com/package/unreal-rc";
+const GITHUB_URL = "https://github.com/peculiarnewbie/unreal-rc";
 const installCommand = "npm install unreal-rc effect";
 
-function Homepage() {
+const heroSnippet = `import { UnrealRC, vector } from "unreal-rc";
+
+const ue = new UnrealRC({
+  baseUrl: "ws://localhost:30020"
+});
+
+const hero = "/Game/Level.Level:PersistentLevel.Hero";
+
+await ue.setProperty(
+  hero,
+  "RelativeLocation",
+  vector(100, 0, 240)
+);`;
+
+const withoutSnippet = `const ws = new WebSocket("ws://localhost:30020");
+const pending = new Map();
+let nextId = 1;
+
+ws.addEventListener("message", (event) => {
+  const msg = JSON.parse(event.data);
+  const entry = pending.get(msg.RequestId);
+  if (!entry) return;
+  pending.delete(msg.RequestId);
+  msg.ResponseCode < 300
+    ? entry.resolve(msg.ResponseBody)
+    : entry.reject(new Error(\`RC \${msg.ResponseCode}\`));
+});
+
+await new Promise((r) =>
+  ws.addEventListener("open", r, { once: true })
+);
+
+function send(verb, url, body) {
+  const requestId = nextId++;
+  return new Promise((resolve, reject) => {
+    pending.set(requestId, { resolve, reject });
+    ws.send(JSON.stringify({
+      MessageName: "http",
+      Parameters: { RequestId: requestId, Url: url, Verb: verb, Body: body }
+    }));
+  });
+}
+
+await send("PUT", "/remote/object/property", {
+  ObjectPath: "/Game/Level.Level:PersistentLevel.Hero",
+  PropertyName: "RelativeLocation",
+  PropertyValue: { X: 100, Y: 0, Z: 240 },
+  Access: "WRITE_ACCESS"
+});`;
+
+const withSnippet = `import { UnrealRC, vector } from "unreal-rc";
+
+const ue = new UnrealRC({ baseUrl: "ws://localhost:30020" });
+
+await ue.setProperty(
+  "/Game/Level.Level:PersistentLevel.Hero",
+  "RelativeLocation",
+  vector(100, 0, 240)
+);`;
+
+const batchSnippet = `const results = await ue.batch((b) => {
+  b.setProperty(hero, "Health", 100);
+  b.setProperty(hero, "MaxHealth", 100);
+  b.call(hero, "ResetStatusEffects");
+});`;
+
+const healthSnippet = `const watcher = ue.watchHealth({
+  onChange: ({ healthy, latencyMs }) => {
+    console.log(healthy ? \`up \${latencyMs}ms\` : "down");
+  }
+});`;
+
+const hooksSnippet = `const ue = new UnrealRC({
+  baseUrl: "ws://localhost:30020",
+  retry: { maxAttempts: 3, delayMs: 200 },
+  onRequest: ({ verb, url }) => console.debug(verb, url),
+  onError: ({ url, error }) => console.error(url, error)
+});`;
+
+const quickStartSnippet = `import { UnrealRC } from "unreal-rc";
+
+const ue = new UnrealRC({
+  baseUrl: "ws://localhost:30020"
+});
+
+try {
+  const result = await ue.call(
+    "/Script/Engine.Default__KismetSystemLibrary",
+    "PrintString",
+    { InString: "Hello from unreal-rc" }
+  );
+  console.log(result);
+} finally {
+  await ue.dispose();
+}`;
+
+function Header() {
   return (
-    <main class="page reference-page">
-      <section class="reference-hero">
-        <div>
+    <header class="site-header">
+      <div class="site-header-inner">
+        <a class="brand" href="/">
+          <span class="brand-mark" aria-hidden="true" />
+          <span>unreal-rc</span>
+        </a>
+        <nav class="site-nav">
+          <a href="#get-started">Get started</a>
+          <a href={NPM_URL} target="_blank" rel="noreferrer">npm</a>
+          <a href={GITHUB_URL} target="_blank" rel="noreferrer">GitHub</a>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+function HeroGraphic() {
+  return (
+    <aside class="hero-editor" aria-label="unreal-rc usage example">
+      <div class="editor-top">
+        <span class="editor-dot" aria-hidden="true" />
+        <span class="editor-filename">example.ts</span>
+        <span class="editor-tag">HTTP + WS</span>
+      </div>
+      <pre class="editor-code">
+        <code innerHTML={highlight(heroSnippet)} />
+      </pre>
+      <div class="editor-tooltip" aria-hidden="true">
+        <div class="tooltip-head">
+          <span class="tooltip-kind">method</span>
+          <span>UnrealRC.setProperty</span>
+        </div>
+        <pre class="tooltip-sig">{`(objectPath: string,
+ propertyName: string,
+ propertyValue: unknown,
+ options?: SetPropertyOptions
+): Promise<ObjectPropertyResponse>`}</pre>
+      </div>
+    </aside>
+  );
+}
+
+function Hero() {
+  return (
+    <section class="hero">
+      <div class="hero-grid">
+        <div class="hero-copy">
           <p class="kicker">unreal-rc</p>
-          <h1>Typed access to Unreal Remote Control from TypeScript.</h1>
+          <h1>Typed access to Unreal Remote Control.</h1>
           <p class="summary">
-            A focused client for engineers building editor utilities, internal
-            dashboards, automation scripts, and validation tools against exposed
-            Unreal objects.
+            A focused client for building tools on top of Unreal's Remote
+            Control API.
+          </p>
+          <div class="hero-ctas">
+            <a class="cta primary" href="#get-started">Get started</a>
+            <a class="cta" href={GITHUB_URL} target="_blank" rel="noreferrer">GitHub</a>
+          </div>
+          <ul class="hero-meta" aria-label="Package details">
+            <li>Effect Schema</li>
+            <li>HTTP + WebSocket</li>
+            <li>Node 18+</li>
+          </ul>
+        </div>
+        <HeroGraphic />
+      </div>
+    </section>
+  );
+}
+
+function GettingStarted() {
+  return (
+    <section class="get-started" id="get-started" aria-labelledby="get-started-heading">
+      <header class="section-head">
+        <span class="section-tag">01 · Setup</span>
+        <h2 id="get-started-heading">Get started in a minute</h2>
+        <p>
+          Install the package and point the client at an Unreal editor with the
+          Remote Control API plugin enabled.
+        </p>
+      </header>
+      <div class="get-started-grid">
+        <div class="install-step">
+          <span class="step-label">Install</span>
+          <code class="install-line">{installCommand}</code>
+          <p class="muted">
+            Requires Node 18+ and the Remote Control API plugin enabled in your
+            Unreal project.
           </p>
         </div>
-        <aside class="reference-graphic" aria-label="Remote Control API graphic">
-          <div class="graphic-top">
-            <span>Remote Control surface</span>
-            <span>HTTP + WS</span>
-          </div>
-          <div class="graphic-monitor">
-            <div class="graphic-crosshair" />
-            <div class="graphic-chip chip-call">call()</div>
-            <div class="graphic-chip chip-property">setProperty()</div>
-            <div class="graphic-chip chip-batch">batch()</div>
-          </div>
-          <div class="graphic-code">
-            <span>await</span> ue.setProperty(actorPath, "RelativeLocation", vector(100, 0, 240));
-          </div>
-          <div class="install-card" aria-label="Install command">
-            <span>Install</span>
-            <code>{installCommand}</code>
-          </div>
-        </aside>
-      </section>
+        <pre class="code-block">
+          <code innerHTML={highlight(quickStartSnippet)} />
+        </pre>
+      </div>
+    </section>
+  );
+}
 
-      <section class="reference-grid" aria-label="API capabilities">
+function Comparison() {
+  return (
+    <section class="comparison" aria-labelledby="comparison-heading">
+      <header class="section-head">
+        <span class="section-tag">02 · Why</span>
+        <h2 id="comparison-heading">Skip the plumbing.</h2>
+        <p>
+          The Remote Control WebSocket works, but driving it by hand means
+          envelope wrangling, request-id correlation, and a fresh set of bugs
+          every time you add a feature. Here's the same property write, with
+          and without.
+        </p>
+      </header>
+      <div class="comparison-grid">
+        <div class="comparison-col">
+          <div class="col-head">
+            <span class="col-label">Without</span>
+            <span class="col-count">~32 lines</span>
+          </div>
+          <pre class="code-block comparison-code">
+            <code innerHTML={highlight(withoutSnippet)} />
+          </pre>
+          <p class="col-note">
+            And still missing: timeouts, retries, reconnection, response
+            validation, types.
+          </p>
+        </div>
+        <div class="comparison-col">
+          <div class="col-head">
+            <span class="col-label accent">With unreal-rc</span>
+            <span class="col-count">9 lines</span>
+          </div>
+          <pre class="code-block comparison-code">
+            <code innerHTML={highlight(withSnippet)} />
+          </pre>
+          <p class="col-note">
+            Included: request correlation, timeouts, retries, auto-reconnect,
+            schema-validated responses, full types.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Patterns() {
+  return (
+    <section class="patterns" aria-labelledby="patterns-heading">
+      <header class="section-head">
+        <span class="section-tag">03 · Patterns</span>
+        <h2 id="patterns-heading">Beyond a single write.</h2>
+        <p>
+          The shapes that justify a real client — hard to get right by hand,
+          one call away here.
+        </p>
+      </header>
+      <div class="patterns-list">
         <article>
-          <span>Function calls</span>
-          <h2>call()</h2>
-          <p>Invoke exposed Blueprint or C++ functions on a remote UObject.</p>
-          <code>await ue.call(path, "ResetFixtures")</code>
+          <div class="card-meta">
+            <span class="card-label">Batch</span>
+            <h3>Group edits in one round-trip</h3>
+          </div>
+          <pre><code innerHTML={highlight(batchSnippet)} /></pre>
         </article>
         <article>
-          <span>Properties</span>
-          <h2>getProperty() / setProperty()</h2>
-          <p>Read and write object properties with optional transactions.</p>
-          <code>await ue.setProperty(path, "Health", 100)</code>
+          <div class="card-meta">
+            <span class="card-label">Health</span>
+            <h3>Watch the editor, reconnect on drop</h3>
+          </div>
+          <pre><code innerHTML={highlight(healthSnippet)} /></pre>
         </article>
         <article>
-          <span>Metadata</span>
-          <h2>describe()</h2>
-          <p>Inspect exposed properties, functions, classes, and display names.</p>
-          <code>const meta = await ue.describe(path)</code>
+          <div class="card-meta">
+            <span class="card-label">Hooks</span>
+            <h3>Retry, log, and redact in one place</h3>
+          </div>
+          <pre><code innerHTML={highlight(hooksSnippet)} /></pre>
         </article>
-        <article>
-          <span>Composition</span>
-          <h2>batch()</h2>
-          <p>Combine calls, property operations, asset searches, and raw routes.</p>
-          <code>await ue.batch((b) =&gt; ...)</code>
-        </article>
-      </section>
-    </main>
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer class="site-footer">
+      <div class="site-footer-inner">
+        <span class="footer-brand">unreal-rc</span>
+        <nav>
+          <a href={NPM_URL} target="_blank" rel="noreferrer">npm</a>
+          <a href={GITHUB_URL} target="_blank" rel="noreferrer">GitHub</a>
+        </nav>
+      </div>
+    </footer>
   );
 }
 
@@ -68,7 +300,14 @@ export default function App() {
   return (
     <>
       <style>{styles}</style>
-      <Homepage />
+      <Header />
+      <main class="page reference-page">
+        <Hero />
+        <GettingStarted />
+        <Comparison />
+        <Patterns />
+      </main>
+      <Footer />
     </>
   );
 }
@@ -78,7 +317,16 @@ const styles = `
     color-scheme: dark;
     background: #0e1114;
     color: #edf0ed;
-    font-family: "Bricolage Grotesque", "Sora", sans-serif;
+    font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --sh-class: #f4ead5;
+    --sh-identifier: #edf0ed;
+    --sh-sign: #8996a3;
+    --sh-string: #d9c7a0;
+    --sh-keyword: #bf784a;
+    --sh-comment: #6b7580;
+    --sh-jsxliterals: #f4ead5;
+    --sh-property: #c9b386;
+    --sh-entity: #c9b386;
   }
 
   * { box-sizing: border-box; }
@@ -97,238 +345,529 @@ const styles = `
 
   button, a { font: inherit; }
   a { color: inherit; text-decoration: none; }
-  code, pre { font-family: "IBM Plex Mono", "JetBrains Mono", monospace; }
+  code, pre { font-family: "JetBrains Mono", ui-monospace, monospace; }
   pre { margin: 0; overflow-x: auto; }
 
   .page {
-    min-height: 100vh;
-    padding: 34px;
-    padding-bottom: 112px;
-  }
-
-  .kicker {
-    margin: 0 0 18px;
-    font-family: "Azeret Mono", monospace;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-  }
-
-  .summary {
-    max-width: 760px;
-    margin: 20px 0 0;
-    font-size: clamp(18px, 1.55vw, 23px);
-    line-height: 1.42;
+    padding: 0 34px 112px;
   }
 
   .reference-page {
     background:
-      radial-gradient(circle at 78% 18%, rgba(191, 120, 74, 0.18), transparent 30rem),
+      radial-gradient(circle at 78% 8%, rgba(191, 120, 74, 0.18), transparent 30rem),
       linear-gradient(90deg, rgba(255,255,255,0.055) 1px, transparent 1px),
       #0d1013;
     background-size: auto, 44px 44px, auto;
   }
 
-  .reference-hero {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(390px, 0.72fr);
-    gap: 34px;
-    align-items: center;
-    max-width: 1260px;
-    min-height: 44vh;
-    margin: 0 auto;
-    padding-top: 34px;
+  /* ── Header ─────────────────────────────────────────────────────────── */
+
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    backdrop-filter: blur(14px);
+    background: rgba(13, 16, 19, 0.72);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
 
-  .reference-hero h1 {
-    max-width: 1000px;
-    margin: 0;
-    font-size: clamp(38px, 5.2vw, 70px);
-    line-height: 1;
-    letter-spacing: -0.045em;
-  }
-
-  .reference-graphic {
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    border-radius: 28px;
-    padding: 16px;
-    background: linear-gradient(150deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.045));
-    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
-  }
-
-  .graphic-top {
+  .site-header-inner {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    gap: 14px;
-    padding: 2px 2px 14px;
-    color: rgba(237, 240, 237, 0.72);
-    font-family: "Azeret Mono", monospace;
-    font-size: 11px;
-    letter-spacing: 0.1em;
+    max-width: 1260px;
+    margin: 0 auto;
+    padding: 16px 34px;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
   }
 
-  .graphic-monitor {
+  .brand-mark {
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid #d9c7a0;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at 50% 50%, #bf784a 2px, transparent 3px),
+      transparent;
+  }
+
+  .site-nav {
+    display: inline-flex;
+    gap: 22px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .site-nav a {
+    color: rgba(237, 240, 237, 0.72);
+    transition: color 150ms ease;
+  }
+
+  .site-nav a:hover { color: #f4ead5; }
+
+  /* ── Hero ───────────────────────────────────────────────────────────── */
+
+  .kicker {
+    margin: 0 0 18px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #d9c7a0;
+  }
+
+  .summary {
+    max-width: 580px;
+    margin: 20px 0 0;
+    font-size: clamp(18px, 1.55vw, 23px);
+    line-height: 1.42;
+    color: rgba(237, 240, 237, 0.8);
+  }
+
+  .hero {
+    max-width: 1260px;
+    margin: 0 auto;
+    padding-top: 56px;
+  }
+
+  .hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(440px, 0.95fr);
+    gap: 48px;
+    align-items: center;
+    min-height: 48vh;
+  }
+
+  .hero-copy h1 {
+    max-width: 24ch;
+    margin: 0;
+    font-size: clamp(38px, 4.8vw, 62px);
+    line-height: 1.04;
+    letter-spacing: -0.035em;
+    font-weight: 600;
+  }
+
+  .hero-ctas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 34px;
+  }
+
+  .cta {
+    display: inline-flex;
+    align-items: center;
+    padding: 12px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #edf0ed;
+    transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+  }
+
+  .cta:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.32);
+  }
+
+  .cta.primary {
+    color: #0e1114;
+    background: #f4ead5;
+    border-color: #f4ead5;
+  }
+
+  .cta.primary:hover {
+    background: #fff5de;
+    transform: translateY(-1px);
+  }
+
+  .hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 0;
+    margin: 26px 0 0;
+    padding: 0;
+    list-style: none;
+    color: rgba(237, 240, 237, 0.62);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .hero-meta li + li::before {
+    content: "·";
+    margin: 0 14px;
+    color: rgba(237, 240, 237, 0.28);
+  }
+
+  /* ── Hero editor graphic ────────────────────────────────────────────── */
+
+  .hero-editor {
     position: relative;
-    height: 300px;
-    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 20px;
     background:
-      linear-gradient(120deg, rgba(191, 120, 74, 0.16), transparent 42%),
-      linear-gradient(180deg, #171c22, #0d1013);
+      linear-gradient(150deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01));
+    box-shadow:
+      0 24px 80px rgba(0, 0, 0, 0.38),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    overflow: visible;
   }
 
-  .graphic-monitor::before {
-    content: "";
-    position: absolute;
-    inset: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 16px;
-  }
-
-  .graphic-crosshair {
-    position: absolute;
-    inset: 50%;
-    width: 134px;
-    height: 134px;
-    border: 1px solid rgba(217, 199, 160, 0.84);
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-  }
-
-  .graphic-crosshair::before,
-  .graphic-crosshair::after {
-    content: "";
-    position: absolute;
-    background: rgba(217, 199, 160, 0.76);
-  }
-
-  .graphic-crosshair::before {
-    top: 50%;
-    left: -58px;
-    width: 250px;
-    height: 1px;
-  }
-
-  .graphic-crosshair::after {
-    top: -58px;
-    left: 50%;
-    width: 1px;
-    height: 250px;
-  }
-
-  .graphic-chip {
-    position: absolute;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 999px;
-    padding: 9px 11px;
-    color: #f4ead5;
-    background: rgba(13, 16, 19, 0.72);
-    font-family: "Azeret Mono", monospace;
+  .editor-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(237, 240, 237, 0.66);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
-  .chip-call { top: 22%; left: 11%; }
-  .chip-property { right: 10%; top: 42%; }
-  .chip-batch { left: 31%; bottom: 15%; }
+  .editor-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #bf784a;
+    box-shadow: 0 0 10px rgba(191, 120, 74, 0.6);
+  }
 
-  .graphic-code {
-    margin-top: 12px;
-    border-radius: 16px;
-    padding: 14px;
-    overflow-x: auto;
+  .editor-filename { color: #f4ead5; }
+
+  .editor-tag {
+    margin-left: auto;
+    padding: 4px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    color: #d9c7a0;
+  }
+
+  .editor-code {
+    padding: 22px 24px 26px;
+    font-size: 13.5px;
+    line-height: 1.7;
+  }
+
+  .editor-code code { color: #edf0ed; }
+
+  .editor-tooltip {
+    position: absolute;
+    right: -28px;
+    bottom: 62px;
+    max-width: 380px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 10px;
+    background: rgba(20, 24, 30, 0.96);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    line-height: 1.55;
+    color: #edf0ed;
+  }
+
+  .tooltip-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
     color: #f4ead5;
-    background: #101419;
-    font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-    font-size: 12px;
+  }
+
+  .tooltip-kind {
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(191, 120, 74, 0.22);
+    color: #bf784a;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .tooltip-sig {
+    color: #c9b386;
+    white-space: pre;
+  }
+
+  /* ── Get started ────────────────────────────────────────────────────── */
+
+  .get-started {
+    max-width: 1260px;
+    margin: 112px auto 0;
+    scroll-margin-top: 80px;
+  }
+
+  .section-head { max-width: 620px; margin-bottom: 36px; }
+  .section-head h2 {
+    margin: 12px 0 14px;
+    font-size: clamp(28px, 3vw, 42px);
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+  }
+  .section-head p {
+    margin: 0;
+    color: rgba(237, 240, 237, 0.7);
+    font-size: 17px;
     line-height: 1.5;
   }
 
-  .graphic-code span { color: #9da7b3; }
-
-  .install-card {
-    margin-top: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    border-radius: 16px;
-    padding: 14px;
-    background: rgba(255, 255, 255, 0.055);
-  }
-
-  .install-card span {
-    display: block;
-    margin-bottom: 10px;
-    color: #d9c7a0;
-    font-family: "Azeret Mono", monospace;
-    font-size: 12px;
-    letter-spacing: 0.12em;
+  .section-tag {
+    display: inline-block;
+    color: #c9b386;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
   }
 
-  .install-card code {
-    display: block;
-    overflow-x: auto;
-    color: #f4ead5;
-  }
-
-  .reference-grid {
+  .get-started-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
     gap: 1px;
-    max-width: 1260px;
-    margin: 42px auto 0;
-    background: rgba(255, 255, 255, 0.16);
-    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.14);
   }
 
-  .reference-grid article {
-    min-height: 310px;
-    padding: 24px;
+  .install-step, .code-block {
     background: #11161a;
+    padding: 24px;
   }
 
-  .reference-grid span {
-    display: block;
-    color: #c9b386;
-    font-family: "Azeret Mono", monospace;
-    font-size: 12px;
+  .install-step { display: flex; flex-direction: column; gap: 14px; }
+
+  .step-label {
+    color: #d9c7a0;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.12em;
     text-transform: uppercase;
   }
 
-  .reference-grid h2 {
-    margin: 64px 0 14px;
-    font-size: 32px;
-    line-height: 1;
-  }
-
-  .reference-grid p {
-    min-height: 76px;
-    margin: 0 0 22px;
-    color: rgba(237, 240, 237, 0.68);
-    line-height: 1.45;
-  }
-
-  .reference-grid code {
+  .install-line {
     display: block;
+    padding: 14px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    background: #0d1013;
+    color: #f4ead5;
+    font-size: 14px;
     overflow-x: auto;
-    color: #f0e8d6;
+  }
+
+  .muted {
+    margin: 0;
+    color: rgba(237, 240, 237, 0.6);
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+
+  .code-block {
+    padding: 22px 24px;
+    font-size: 13.5px;
+    line-height: 1.7;
+  }
+
+  /* ── Comparison ─────────────────────────────────────────────────────── */
+
+  .comparison {
+    max-width: 1260px;
+    margin: 112px auto 0;
+  }
+
+  .comparison-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+  }
+
+  .comparison-col {
+    display: flex;
+    flex-direction: column;
+    background: #11161a;
+  }
+
+  .comparison-col:first-child { opacity: 0.78; }
+
+  .col-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 22px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .col-label {
+    color: rgba(237, 240, 237, 0.66);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .col-label.accent { color: #d9c7a0; }
+
+  .col-count {
+    color: rgba(237, 240, 237, 0.42);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+  }
+
+  .comparison-code {
+    flex: 1;
+    padding: 20px 22px;
+    font-size: 12.5px;
+    line-height: 1.65;
+  }
+
+  .col-note {
+    margin: 0;
+    padding: 14px 22px 18px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(237, 240, 237, 0.58);
     font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* ── Patterns ───────────────────────────────────────────────────────── */
+
+  .patterns {
+    max-width: 1260px;
+    margin: 112px auto 0;
+  }
+
+  .patterns-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+  }
+
+  .patterns-list article {
+    display: grid;
+    grid-template-columns: minmax(240px, 0.4fr) minmax(0, 1fr);
+    gap: 32px;
+    padding: 28px 32px;
+    background: #11161a;
+    align-items: center;
+  }
+
+  .card-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card-label {
+    display: block;
+    color: #c9b386;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .patterns-list h3 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: #edf0ed;
+  }
+
+  .patterns-list pre {
+    margin: 0;
+    padding: 18px 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    background: #0d1013;
+    font-size: 13px;
+    line-height: 1.65;
+    overflow-x: auto;
+  }
+
+  /* ── Footer ─────────────────────────────────────────────────────────── */
+
+  .site-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    margin-top: 112px;
+    padding: 28px 34px;
+    background: #0b0e11;
+  }
+
+  .site-footer-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1260px;
+    margin: 0 auto;
+    color: rgba(237, 240, 237, 0.55);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .footer-brand { color: #f4ead5; }
+
+  .site-footer nav { display: inline-flex; gap: 22px; }
+  .site-footer nav a { transition: color 150ms ease; }
+  .site-footer nav a:hover { color: #f4ead5; }
+
+  /* ── Responsive ─────────────────────────────────────────────────────── */
+
+  @media (max-width: 1080px) {
+    .editor-tooltip { display: none; }
   }
 
   @media (max-width: 980px) {
-    .page { padding: 22px; padding-bottom: 112px; }
-    .reference-hero { grid-template-columns: 1fr; }
-    .reference-graphic { max-width: 620px; }
-    .reference-grid { grid-template-columns: 1fr 1fr; }
+    .page { padding: 0 22px 112px; }
+    .site-header-inner { padding: 14px 22px; }
+    .hero-grid { grid-template-columns: 1fr; gap: 34px; }
+    .hero-editor { max-width: 640px; }
+    .get-started-grid { grid-template-columns: 1fr; }
+    .comparison-grid { grid-template-columns: 1fr; }
+    .patterns-list article { grid-template-columns: 1fr; gap: 16px; align-items: stretch; }
+    .site-footer { padding: 24px 22px; }
   }
 
   @media (max-width: 680px) {
-    .page { padding: 16px; padding-bottom: 116px; }
-    .reference-hero h1 { font-size: clamp(34px, 12vw, 50px); }
-    .summary { font-size: 18px; }
-    .graphic-monitor { height: 240px; }
-    .reference-grid { grid-template-columns: 1fr; }
+    .page { padding: 0 16px 112px; }
+    .site-header-inner { padding: 12px 16px; }
+    .site-nav { gap: 14px; }
+    .hero { padding-top: 36px; }
+    .hero-copy h1 { font-size: clamp(32px, 11vw, 44px); }
+    .summary { font-size: 17px; }
+    .editor-code, .code-block { font-size: 12.5px; padding: 18px; }
+    .site-footer-inner { flex-direction: column; gap: 12px; align-items: flex-start; }
   }
 `;

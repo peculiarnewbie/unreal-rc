@@ -4,7 +4,11 @@
       "WebFetch(domain:dev.epicgames.com)",
       "Bash(cd packages/core && bun add effect 2>&1 | tail -5)",
       "Bash(bun add:*)",
-      "Bash(bun run:*)"
+      "Bash(bun run:*)",
+      "Bash(curl -s http://localhost:5174/)",
+      "Bash(curl -s -o /tmp/app-compiled.js -w \"%{http_code}\\\\n\" http://localhost:5174/src/app.tsx)",
+      "Read(//tmp/**)",
+      "Bash(curl -s -o /tmp/fav.svg -w \"%{http_code}\\\\n\" http://localhost:5174/favicon.svg)"
     ]
   }
 }

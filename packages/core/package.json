@@ -11,7 +11,7 @@
   "bugs": {
     "url": "https://github.com/peculiarnewbie/unreal-rc/issues"
   },
-  "homepage": "https://github.com/peculiarnewbie/unreal-rc#readme",
+  "homepage": "https://unreal-rc.peculiarnewbie.com",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
