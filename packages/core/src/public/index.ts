@@ -2,10 +2,14 @@
 export { UnrealRC } from "./client.js";
 export type {
   BatchOptions,
+  CallArgs,
   CallOptions,
+  DescribeArgs,
   DescribeOptions,
   ErrorHookContext,
   EventOptions,
+  GetPropertiesArgs,
+  GetPropertyArgs,
   GetPropertyOptions,
   HealthWatcher,
   PayloadRedactionContext,
@@ -15,11 +19,15 @@ export type {
   RetryContext,
   RetryOptions,
   RetryPolicy,
+  SearchAssetsArgs,
   SearchAssetsOptions,
+  SetPropertyArgs,
   SetPropertyOptions,
+  ThumbnailArgs,
   ThumbnailOptions,
   UnrealRCOptions,
-  WatchHealthOptions
+  WatchHealthOptions,
+  WritableAccessMode
 } from "./client.js";
 
 // ── Batch ──────────────────────────────────────────────────────────────
@@ -32,8 +40,12 @@ export {
 } from "../internal/batch.js";
 export type {
   BatchResult,
+  BuildCallArgs,
   BuildCallRequestOptions,
-  BuildPropertyRequestOptions
+  BuildGetPropertyArgs,
+  BuildPropertyRequestOptions,
+  BuildSearchAssetsArgs,
+  BuildSetPropertyArgs
 } from "../internal/batch.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────

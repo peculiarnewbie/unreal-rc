@@ -21,13 +21,20 @@
 6. Add new discriminated health result types as additive exports, then migrate methods only in a future breaking release.
 7. Run `bun run typecheck`, `bun run build`, and `bun test` after implementation changes.
 
-## Suggested First Slice
+## Progress
 
-Start with the non-breaking changes:
+### Completed
 
-1. Derive public types from schemas.
-2. Add object-argument overloads for `UnrealRC` methods.
-3. Add object-argument overloads for batch helpers and `BatchBuilder` methods.
-4. Add focused tests that prove both old positional calls and new object calls compile and behave the same.
+- [x] Item 1: Derive public request and response types from Effect schemas (`packages/core/src/public/types.ts`). Types now use `Schema.Schema.Type<typeof FooSchema>` with a `WithIndex<T>` helper preserving `[key: string]: unknown` on response types. Health/transport types without schema counterparts remain manual.
+- [x] Item 2: Add object-argument overloads for `UnrealRC` methods (`call`, `getProperty`, `getProperties`, `setProperty`, `describe`, `searchAssets`, `thumbnail`). Each method now accepts either positional args or a single `*Args` object. New exported types: `CallArgs`, `GetPropertyArgs`, `GetPropertiesArgs`, `SetPropertyArgs`, `DescribeArgs`, `SearchAssetsArgs`, `ThumbnailArgs`, `WritableAccessMode`.
+- [x] Item 3: Add object-argument overloads for batch helpers (`buildCallRequest`) and `BatchBuilder` methods (`call`, `getProperty`, `setProperty`, `searchAssets`). New exported types: `BuildCallArgs`, `BuildGetPropertyArgs`, `BuildSetPropertyArgs`, `BuildSearchAssetsArgs`.
+- [x] Item 4: Add focused tests (`tests/overloads.test.ts`) proving both positional and object forms compile and produce identical request bodies for all client methods, batch helpers, and `BatchBuilder` methods.
 
-Defer branded public types and discriminated health-state changes until there is appetite for a major version or a carefully staged compatibility path.
+### Remaining (from Recommended Plan)
+
+5. Clean up hook handling so the runtime `Hooks` service is either actually used by request sending, or removed if direct client hooks are the intended design.
+6. Add new discriminated health result types as additive exports, then migrate methods only in a future breaking release.
+
+### Deferred
+
+Branded public types and discriminated health-state changes until there is appetite for a major version or a carefully staged compatibility path.

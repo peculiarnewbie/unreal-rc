@@ -108,7 +108,7 @@ export interface GetPropertyOptions extends RequestOptionsBase {
   access?: AccessMode;
 }
 
-type WritableAccessMode = Exclude<AccessMode, "READ_ACCESS">;
+export type WritableAccessMode = Exclude<AccessMode, "READ_ACCESS">;
 
 export interface SetPropertyOptions extends RequestOptionsBase {
   access?: WritableAccessMode;
@@ -124,6 +124,65 @@ export interface BatchOptions extends RequestOptionsBase {}
 export interface EventOptions extends RequestOptionsBase {}
 
 export interface ThumbnailOptions extends RequestOptionsBase {}
+
+// ── Object-argument overload types ─────────────────────────────────────
+
+export interface CallArgs {
+  readonly objectPath: string;
+  readonly functionName: string;
+  readonly parameters?: Record<string, unknown> | undefined;
+  readonly transaction?: boolean | undefined;
+  readonly timeoutMs?: number | undefined;
+  readonly retry?: RetryOptions | undefined;
+}
+
+export interface GetPropertyArgs {
+  readonly objectPath: string;
+  readonly propertyName: string;
+  readonly access?: AccessMode | undefined;
+  readonly timeoutMs?: number | undefined;
+  readonly retry?: RetryOptions | undefined;
+}
+
+export interface GetPropertiesArgs {
+  readonly objectPath: string;
+  readonly access?: AccessMode | undefined;
+  readonly timeoutMs?: number | undefined;
+  readonly retry?: RetryOptions | undefined;
+}
+
+export interface SetPropertyArgs {
+  readonly objectPath: string;
+  readonly propertyName: string;
+  readonly propertyValue: unknown;
+  readonly access?: WritableAccessMode | undefined;
+  readonly transaction?: boolean | undefined;
+  readonly timeoutMs?: number | undefined;
+  readonly retry?: RetryOptions | undefined;
+}
+
+export interface DescribeArgs {
+  readonly objectPath: string;
+  readonly timeoutMs?: number | undefined;
+  readonly retry?: RetryOptions | undefined;
+}
+
+export interface SearchAssetsArgs {
+  readonly query: string;
+  readonly classNames?: readonly string[] | undefined;
+  readonly packagePaths?: readonly string[] | undefined;
+  readonly recursivePaths?: boolean | undefined;
+  readonly recursiveClasses?: boolean | undefined;
+  readonly includeOnlyOnDiskAssets?: boolean | undefined;
+  readonly timeoutMs?: number | undefined;
+  readonly retry?: RetryOptions | undefined;
+}
+
+export interface ThumbnailArgs {
+  readonly objectPath: string;
+  readonly timeoutMs?: number | undefined;
+  readonly retry?: RetryOptions | undefined;
+}
 
 // ── Health detection option types ─────────────────────────────────────
 
@@ -170,7 +229,7 @@ export class UnrealRC {
     this._redactPayload = options.redactPayload;
   }
 
-  async call(
+  private async callImpl(
     objectPath: string,
     functionName: string,
     parameters?: Record<string, unknown>,
@@ -181,7 +240,35 @@ export class UnrealRC {
     return normalizeCallResponse(response);
   }
 
-  async getProperty<T = unknown>(
+  async call(
+    objectPath: string,
+    functionName: string,
+    parameters?: Record<string, unknown>,
+    options?: CallOptions
+  ): Promise<ObjectCallResponse>;
+  async call(args: CallArgs): Promise<ObjectCallResponse>;
+  async call(
+    objectPathOrArgs: string | CallArgs,
+    functionName?: string,
+    parameters?: Record<string, unknown>,
+    options?: CallOptions
+  ): Promise<ObjectCallResponse> {
+    if (typeof objectPathOrArgs === "string") {
+      return this.callImpl(objectPathOrArgs, functionName!, parameters, options);
+    }
+    return this.callImpl(
+      objectPathOrArgs.objectPath,
+      objectPathOrArgs.functionName,
+      objectPathOrArgs.parameters,
+      {
+        ...(objectPathOrArgs.transaction !== undefined ? { transaction: objectPathOrArgs.transaction } : {}),
+        ...(objectPathOrArgs.timeoutMs !== undefined ? { timeoutMs: objectPathOrArgs.timeoutMs } : {}),
+        ...(objectPathOrArgs.retry !== undefined ? { retry: objectPathOrArgs.retry } : {})
+      }
+    );
+  }
+
+  private async getPropertyImpl<T = unknown>(
     objectPath: string,
     propertyName: string,
     options?: GetPropertyOptions
@@ -200,7 +287,32 @@ export class UnrealRC {
     return parseReturnValue<T>(response, propertyName) ?? parseReturnValue<T>(response);
   }
 
-  async getProperties<T = Record<string, unknown>>(
+  async getProperty<T = unknown>(
+    objectPath: string,
+    propertyName: string,
+    options?: GetPropertyOptions
+  ): Promise<T | undefined>;
+  async getProperty<T = unknown>(args: GetPropertyArgs): Promise<T | undefined>;
+  async getProperty<T = unknown>(
+    objectPathOrArgs: string | GetPropertyArgs,
+    propertyName?: string,
+    options?: GetPropertyOptions
+  ): Promise<T | undefined> {
+    if (typeof objectPathOrArgs === "string") {
+      return this.getPropertyImpl(objectPathOrArgs, propertyName!, options);
+    }
+    return this.getPropertyImpl(
+      objectPathOrArgs.objectPath,
+      objectPathOrArgs.propertyName,
+      {
+        ...(objectPathOrArgs.access !== undefined ? { access: objectPathOrArgs.access } : {}),
+        ...(objectPathOrArgs.timeoutMs !== undefined ? { timeoutMs: objectPathOrArgs.timeoutMs } : {}),
+        ...(objectPathOrArgs.retry !== undefined ? { retry: objectPathOrArgs.retry } : {})
+      }
+    );
+  }
+
+  private async getPropertiesImpl<T = Record<string, unknown>>(
     objectPath: string,
     options?: GetPropertyOptions
   ): Promise<T> {
@@ -217,7 +329,26 @@ export class UnrealRC {
     return parseReturnValue<T>(response) ?? (response as T);
   }
 
-  async setProperty(
+  async getProperties<T = Record<string, unknown>>(
+    objectPath: string,
+    options?: GetPropertyOptions
+  ): Promise<T>;
+  async getProperties<T = Record<string, unknown>>(args: GetPropertiesArgs): Promise<T>;
+  async getProperties<T = Record<string, unknown>>(
+    objectPathOrArgs: string | GetPropertiesArgs,
+    options?: GetPropertyOptions
+  ): Promise<T> {
+    if (typeof objectPathOrArgs === "string") {
+      return this.getPropertiesImpl(objectPathOrArgs, options);
+    }
+    return this.getPropertiesImpl(objectPathOrArgs.objectPath, {
+      ...(objectPathOrArgs.access !== undefined ? { access: objectPathOrArgs.access } : {}),
+      ...(objectPathOrArgs.timeoutMs !== undefined ? { timeoutMs: objectPathOrArgs.timeoutMs } : {}),
+      ...(objectPathOrArgs.retry !== undefined ? { retry: objectPathOrArgs.retry } : {})
+    });
+  }
+
+  private async setPropertyImpl(
     objectPath: string,
     propertyName: string,
     propertyValue: unknown,
@@ -239,14 +370,75 @@ export class UnrealRC {
     return response ?? ({} as ObjectPropertyResponse);
   }
 
-  async describe(objectPath: string, options?: DescribeOptions): Promise<ObjectDescribeResponse> {
+  async setProperty(
+    objectPath: string,
+    propertyName: string,
+    propertyValue: unknown,
+    options?: SetPropertyOptions
+  ): Promise<ObjectPropertyResponse>;
+  async setProperty(args: SetPropertyArgs): Promise<ObjectPropertyResponse>;
+  async setProperty(
+    objectPathOrArgs: string | SetPropertyArgs,
+    propertyName?: string,
+    propertyValue?: unknown,
+    options?: SetPropertyOptions
+  ): Promise<ObjectPropertyResponse> {
+    if (typeof objectPathOrArgs === "string") {
+      return this.setPropertyImpl(objectPathOrArgs, propertyName!, propertyValue, options);
+    }
+    return this.setPropertyImpl(
+      objectPathOrArgs.objectPath,
+      objectPathOrArgs.propertyName,
+      objectPathOrArgs.propertyValue,
+      {
+        ...(objectPathOrArgs.access !== undefined ? { access: objectPathOrArgs.access } : {}),
+        ...(objectPathOrArgs.transaction !== undefined ? { transaction: objectPathOrArgs.transaction } : {}),
+        ...(objectPathOrArgs.timeoutMs !== undefined ? { timeoutMs: objectPathOrArgs.timeoutMs } : {}),
+        ...(objectPathOrArgs.retry !== undefined ? { retry: objectPathOrArgs.retry } : {})
+      }
+    );
+  }
+
+  private async describeImpl(objectPath: string, options?: DescribeOptions): Promise<ObjectDescribeResponse> {
     return this.send("PUT", "/remote/object/describe", buildDescribeRequest(objectPath), ObjectDescribeResponseSchema, options);
   }
 
-  async searchAssets(query: string, options?: SearchAssetsOptions): Promise<SearchAssetsResponse> {
+  async describe(objectPath: string, options?: DescribeOptions): Promise<ObjectDescribeResponse>;
+  async describe(args: DescribeArgs): Promise<ObjectDescribeResponse>;
+  async describe(
+    objectPathOrArgs: string | DescribeArgs,
+    options?: DescribeOptions
+  ): Promise<ObjectDescribeResponse> {
+    if (typeof objectPathOrArgs === "string") {
+      return this.describeImpl(objectPathOrArgs, options);
+    }
+    return this.describeImpl(objectPathOrArgs.objectPath, {
+      timeoutMs: objectPathOrArgs.timeoutMs,
+      retry: objectPathOrArgs.retry
+    });
+  }
+
+  private async searchAssetsImpl(query: string, options?: SearchAssetsOptions): Promise<SearchAssetsResponse> {
     const { timeoutMs, retry, ...searchOptions } = options ?? {};
     const body = Schema.encodeSync(SearchAssetsRequestSchema)({ query, ...searchOptions });
     return this.send("PUT", "/remote/search/assets", body, SearchAssetsResponseSchema, {
+      ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+      ...(retry !== undefined ? { retry } : {})
+    });
+  }
+
+  async searchAssets(query: string, options?: SearchAssetsOptions): Promise<SearchAssetsResponse>;
+  async searchAssets(args: SearchAssetsArgs): Promise<SearchAssetsResponse>;
+  async searchAssets(
+    queryOrArgs: string | SearchAssetsArgs,
+    options?: SearchAssetsOptions
+  ): Promise<SearchAssetsResponse> {
+    if (typeof queryOrArgs === "string") {
+      return this.searchAssetsImpl(queryOrArgs, options);
+    }
+    const { query, timeoutMs, retry, ...searchOptions } = queryOrArgs;
+    return this.searchAssetsImpl(query, {
+      ...searchOptions,
       ...(timeoutMs !== undefined ? { timeoutMs } : {}),
       ...(retry !== undefined ? { retry } : {})
     });
@@ -261,9 +453,24 @@ export class UnrealRC {
     return this.send("PUT", "/remote/object/event", body, ObjectEventResponseSchema, options);
   }
 
-  async thumbnail(objectPath: string, options?: ThumbnailOptions): Promise<ObjectThumbnailResponse> {
+  private async thumbnailImpl(objectPath: string, options?: ThumbnailOptions): Promise<ObjectThumbnailResponse> {
     const body = Schema.encodeSync(ObjectThumbnailRequestSchema)({ objectPath });
     return this.send("PUT", "/remote/object/thumbnail", body, ObjectThumbnailResponseSchema, options);
+  }
+
+  async thumbnail(objectPath: string, options?: ThumbnailOptions): Promise<ObjectThumbnailResponse>;
+  async thumbnail(args: ThumbnailArgs): Promise<ObjectThumbnailResponse>;
+  async thumbnail(
+    objectPathOrArgs: string | ThumbnailArgs,
+    options?: ThumbnailOptions
+  ): Promise<ObjectThumbnailResponse> {
+    if (typeof objectPathOrArgs === "string") {
+      return this.thumbnailImpl(objectPathOrArgs, options);
+    }
+    return this.thumbnailImpl(objectPathOrArgs.objectPath, {
+      timeoutMs: objectPathOrArgs.timeoutMs,
+      retry: objectPathOrArgs.retry
+    });
   }
 
   async batch(
