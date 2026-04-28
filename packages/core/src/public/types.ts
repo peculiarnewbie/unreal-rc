@@ -103,6 +103,14 @@ export interface HealthStatus {
   readonly lastSeen: Date | undefined;
 }
 
+export type DiscriminatedPingResult =
+  | { readonly type: "reachable"; readonly latencyMs: number; }
+  | { readonly type: "unreachable"; };
+
+export type DiscriminatedHealthStatus =
+  | { readonly type: "healthy"; readonly latencyMs: number; readonly lastSeen: Date; }
+  | { readonly type: "unhealthy"; readonly consecutiveFailures: number; readonly lastSeen: Date | undefined; };
+
 export interface PendingRequestInfo {
   readonly requestId: number | string | undefined;
   readonly verb: string;

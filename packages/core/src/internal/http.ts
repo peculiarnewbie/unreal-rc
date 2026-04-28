@@ -1,4 +1,4 @@
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Schema } from "effect";
 import {
   ConnectError,
   DecodeError,
@@ -7,16 +7,10 @@ import {
   type TransportError
 } from "./errors.js";
 import { Transport, type PendingRequestInfo, type TransportRequest, type TransportResponse } from "./transport.js";
+import { HttpTransportOptionsSchema } from "./config-schemas.js";
+import type { HttpTransportOptions } from "./config-schemas.js";
 
-export interface HttpTransportOptions {
-  baseUrl?: string;
-  host?: string;
-  port?: number;
-  secure?: boolean;
-  passphrase?: string;
-  headers?: Record<string, string>;
-  requestTimeoutMs?: number;
-}
+export type { HttpTransportOptions };
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 30010;
@@ -25,6 +19,7 @@ const DEFAULT_HTTP_PASSPHRASE = "smh ue, this is stupid";
 const TIMEOUT_ABORT_REASON = "timeout";
 
 export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Layer<Transport> => {
+  Schema.decodeUnknownSync(HttpTransportOptionsSchema)(options);
   const baseUrl =
     options.baseUrl?.replace(/\/$/, "") ??
     `${options.secure ? "https" : "http"}://${options.host ?? DEFAULT_HOST}:${options.port ?? DEFAULT_PORT}`;

@@ -1,9 +1,9 @@
-import { Effect, Layer, ManagedRuntime } from "effect";
+import { Effect, Layer, ManagedRuntime, Schema } from "effect";
 import { Transport, type TransportRequest, type TransportResponse } from "./transport.js";
 import type { TransportError } from "./errors.js";
-import { Hooks, HooksLive, HooksNoop, type HooksService } from "./hooks.js";
 import { HttpTransportLive, type HttpTransportOptions } from "./http.js";
 import { WebSocketTransportLive, type DisconnectInfo, type WebSocketTransportOptions } from "./ws.js";
+import { RuntimeConfigSchema } from "./config-schemas.js";
 
 export interface RuntimeConfig {
   transport?: "ws" | "http" | undefined;
@@ -13,12 +13,6 @@ export interface RuntimeConfig {
   passphrase?: string;
   ws?: WebSocketTransportOptions;
   http?: HttpTransportOptions;
-  onRequest?: HooksService["onRequest"] extends (ctx: infer C) => Effect.Effect<void>
-    ? ((ctx: C) => void | Promise<void>) | undefined
-    : never;
-  onResponse?: Parameters<typeof HooksLive>[0]["onResponse"];
-  onError?: Parameters<typeof HooksLive>[0]["onError"];
-  redactPayload?: Parameters<typeof HooksLive>[0]["redactPayload"];
   onDisconnect?: ((info: DisconnectInfo) => void) | undefined;
   onReconnect?: (() => void) | undefined;
 }
@@ -55,25 +49,14 @@ const makeTransportLayer = (config: RuntimeConfig): Layer.Layer<Transport> => {
   });
 };
 
-const makeHooksLayer = (config: RuntimeConfig): Layer.Layer<Hooks> => {
-  if (config.onRequest || config.onResponse || config.onError || config.redactPayload) {
-    return HooksLive({
-      onRequest: config.onRequest,
-      onResponse: config.onResponse,
-      onError: config.onError,
-      redactPayload: config.redactPayload
-    });
-  }
-  return HooksNoop;
-};
-
-export type FullLayer = Transport | Hooks;
+export type FullLayer = Transport;
 
 export const makeFullLayer = (config: RuntimeConfig): Layer.Layer<FullLayer> => {
-  return Layer.merge(makeTransportLayer(config), makeHooksLayer(config));
+  return makeTransportLayer(config);
 };
 
 export const makeRuntime = (config: RuntimeConfig): ManagedRuntime.ManagedRuntime<FullLayer, never> => {
+  Schema.decodeUnknownSync(RuntimeConfigSchema)(config, { onExcessProperty: "ignore" });
   return ManagedRuntime.make(makeFullLayer(config));
 };
 

@@ -71,6 +71,8 @@ export type {
   BatchRequestItem,
   BatchResponse,
   BatchResponseItem,
+  DiscriminatedHealthStatus,
+  DiscriminatedPingResult,
   FunctionArgument,
   FunctionMetadata,
   HealthStatus,
@@ -123,6 +125,16 @@ export {
   SearchAssetsRequestSchema,
   SearchAssetsResponseSchema
 } from "../internal/schemas.js";
+
+// ── Config schemas ───────────────────────────────────────────────────────
+export {
+  HttpTransportOptionsSchema,
+  WebSocketTransportOptionsSchema,
+  RuntimeConfigSchema,
+  RetryPolicySchema,
+  UnrealRCOptionsSchema,
+  WatchHealthOptionsSchema
+} from "../internal/config-schemas.js";
 
 // ── Transport layers (advanced usage) ──────────────────────────────────
 export { HttpTransportLive } from "../internal/http.js";

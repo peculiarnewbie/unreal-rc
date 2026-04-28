@@ -30,11 +30,11 @@
 - [x] Item 3: Add object-argument overloads for batch helpers (`buildCallRequest`) and `BatchBuilder` methods (`call`, `getProperty`, `setProperty`, `searchAssets`). New exported types: `BuildCallArgs`, `BuildGetPropertyArgs`, `BuildSetPropertyArgs`, `BuildSearchAssetsArgs`.
 - [x] Item 4: Add focused tests (`tests/overloads.test.ts`) proving both positional and object forms compile and produce identical request bodies for all client methods, batch helpers, and `BatchBuilder` methods.
 
-### Remaining (from Recommended Plan)
+### Completed
 
-5. Clean up hook handling so the runtime `Hooks` service is either actually used by request sending, or removed if direct client hooks are the intended design.
-6. Add new discriminated health result types as additive exports, then migrate methods only in a future breaking release.
+- [x] Item 5: Removed dead `Hooks` Effect service (`HooksService`, `Hooks`, `HooksLive`, `HooksNoop`) from `internal/hooks.ts`. Removed `makeHooksLayer` and hooks fields from `RuntimeConfig` in `internal/runtime.ts`. Hook firing remains entirely in `UnrealRC`'s private imperative methods (`fireRequestHook`, `fireResponseHook`, `fireErrorHook`), which was the only path actually used.
+- [x] Item 6: Added discriminated health result types as additive exports alongside existing `PingResult` and `HealthStatus` in `packages/core/src/public/types.ts`. New public types: `DiscriminatedPingResult` (`"reachable" | "unreachable"`) and `DiscriminatedHealthStatus` (`"healthy" | "unhealthy"`). Method return types unchanged (deferred to future breaking release).
 
 ### Deferred
 
-Branded public types and discriminated health-state changes until there is appetite for a major version or a carefully staged compatibility path.
+Branded public types and discriminated health-state method migration until there is appetite for a major version or a carefully staged compatibility path.

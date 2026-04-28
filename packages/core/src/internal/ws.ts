@@ -1,4 +1,4 @@
-import { Deferred, Effect, Fiber, Layer, Queue, Ref, Schedule } from "effect";
+import { Deferred, Effect, Fiber, Layer, Queue, Ref, Schedule, Schema } from "effect";
 import {
   ConnectError,
   DisconnectError,
@@ -9,6 +9,7 @@ import {
 import { Transport, type PendingRequestInfo, type TransportRequest, type TransportResponse } from "./transport.js";
 import { heartbeat } from "./heartbeat.js";
 import { PendingRequests, PendingRequestsLive } from "./correlation.js";
+import { WebSocketTransportOptionsSchema } from "./config-schemas.js";
 
 export interface DisconnectInfo {
   readonly code: number | undefined;
@@ -67,6 +68,7 @@ interface QueuedRequest {
 export const WebSocketTransportLive = (
   options: WebSocketTransportOptions = {}
 ): Layer.Layer<Transport> => {
+  Schema.decodeUnknownSync(WebSocketTransportOptionsSchema)(options, { onExcessProperty: "ignore" });
   const url =
     options.baseUrl ??
     `${options.secure ? "wss" : "ws"}://${options.host ?? DEFAULT_HOST}:${options.port ?? DEFAULT_PORT}`;

@@ -28,6 +28,7 @@ import {
   ObjectThumbnailResponseSchema,
   BatchResponseSchema
 } from "../internal/schemas.js";
+import { UnrealRCOptionsSchema } from "../internal/config-schemas.js";
 import { toPublicError, TransportRequestError } from "./errors.js";
 import { parseReturnValue } from "./helpers.js";
 import type {
@@ -86,13 +87,13 @@ export interface RetryPolicy {
 
 export type RetryOptions = boolean | RetryPolicy;
 
-export interface UnrealRCOptions extends Omit<RuntimeConfig, "onRequest" | "onResponse" | "onError" | "redactPayload"> {
+export interface UnrealRCOptions extends RuntimeConfig {
   validateResponses?: boolean;
   retry?: RetryOptions;
-  onRequest?: RuntimeConfig["onRequest"];
-  onResponse?: RuntimeConfig["onResponse"];
-  onError?: RuntimeConfig["onError"];
-  redactPayload?: RuntimeConfig["redactPayload"];
+  onRequest?: ((context: RequestHookContext) => void | Promise<void>) | undefined;
+  onResponse?: ((context: ResponseHookContext) => void | Promise<void>) | undefined;
+  onError?: ((context: ErrorHookContext) => void | Promise<void>) | undefined;
+  redactPayload?: ((payload: unknown, context: PayloadRedactionContext) => unknown) | undefined;
 }
 
 interface RequestOptionsBase {
@@ -219,6 +220,7 @@ export class UnrealRC {
   private readonly _redactPayload: ((payload: unknown, ctx: PayloadRedactionContext) => unknown) | undefined;
 
   constructor(options: UnrealRCOptions = {}) {
+    Schema.decodeUnknownSync(UnrealRCOptionsSchema)(options, { onExcessProperty: "ignore" });
     this.runtime = makeRuntime(options);
     this.validateResponses = options.validateResponses ?? true;
     this.defaultRetry = options.retry;
