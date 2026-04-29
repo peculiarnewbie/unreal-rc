@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { CallOptions, GetPropertyOptions, SetPropertyOptions } from "../../src/index.js";
+import type { CallArgs, GetPropertyArgs, SetPropertyArgs } from "../../src/index.js";
 import {
   acquireFixture,
   releaseFixture,
@@ -33,45 +33,40 @@ wsRoundtripTest(
       currentStep = "wait for Remote Control WebSocket";
       await waitForRemoteControlWs(handle, launchOptions);
 
-      const propertyOptions: GetPropertyOptions = requestOptions;
-      const setPropertyOptions: SetPropertyOptions = requestOptions;
-      const callOptions: CallOptions = requestOptions;
-
       currentStep = `reset ${contract.propertyName} over HTTP`;
-      await setCounter(clients.http, contract.objectPath, contract.propertyName, contract.baselineValue, setPropertyOptions);
+      await setCounter(clients.http, { objectPath: contract.objectPath, propertyName: contract.propertyName, propertyValue: contract.baselineValue, ...requestOptions });
 
       currentStep = `verify ${contract.propertyName} baseline over WebSocket`;
-      expect(await getCounter(clients.ws, contract.objectPath, contract.propertyName, propertyOptions)).toBe(
+      expect(await getCounter(clients.ws, { objectPath: contract.objectPath, propertyName: contract.propertyName, ...requestOptions })).toBe(
         contract.baselineValue
       );
 
       currentStep = `set ${contract.propertyName}=${contract.wsWriteValue} over WebSocket`;
-      await setCounter(
-        clients.ws,
-        contract.objectPath,
-        contract.propertyName,
-        contract.wsWriteValue,
-        setPropertyOptions
-      );
+      await setCounter(clients.ws, {
+        objectPath: contract.objectPath,
+        propertyName: contract.propertyName,
+        propertyValue: contract.wsWriteValue,
+        ...requestOptions
+      });
       currentStep = `verify ${contract.propertyName}=${contract.wsWriteValue} over WebSocket`;
-      expect(await getCounter(clients.ws, contract.objectPath, contract.propertyName, propertyOptions)).toBe(
+      expect(await getCounter(clients.ws, { objectPath: contract.objectPath, propertyName: contract.propertyName, ...requestOptions })).toBe(
         contract.wsWriteValue
       );
 
       const wsExpected = contract.wsWriteValue + contract.wsCallDelta;
       currentStep = `${contract.functionName}(${contract.wsCallDelta}) over WebSocket`;
-      const wsCall = await clients.ws.call(
-        contract.objectPath,
-        contract.functionName,
-        {
+      const wsCall = await clients.ws.call({
+        objectPath: contract.objectPath,
+        functionName: contract.functionName,
+        parameters: {
           [contract.functionArgumentName]: contract.wsCallDelta
         },
-        callOptions
-      );
+        ...requestOptions
+      });
 
       expect(wsCall.ReturnValue).toBe(wsExpected);
       currentStep = `verify ${contract.propertyName}=${wsExpected} over WebSocket`;
-      expect(await getCounter(clients.ws, contract.objectPath, contract.propertyName, propertyOptions)).toBe(
+      expect(await getCounter(clients.ws, { objectPath: contract.objectPath, propertyName: contract.propertyName, ...requestOptions })).toBe(
         wsExpected
       );
     } catch (error) {
@@ -87,16 +82,13 @@ wsRoundtripTest(
       );
     } finally {
       try {
-        await setCounter(
-          clients.http,
-          contract.objectPath,
-          contract.propertyName,
-          contract.baselineValue,
-          {
-            timeoutMs: launchOptions.requestTimeoutMs,
-            retry: false
-          }
-        );
+        await setCounter(clients.http, {
+          objectPath: contract.objectPath,
+          propertyName: contract.propertyName,
+          propertyValue: contract.baselineValue,
+          timeoutMs: launchOptions.requestTimeoutMs,
+          retry: false
+        });
       } catch {}
 
       clients.dispose();
@@ -107,23 +99,18 @@ wsRoundtripTest(
 );
 
 const getCounter = async (
-  client: { getProperty<T>(objectPath: string, propertyName: string, options?: GetPropertyOptions): Promise<T | undefined> },
-  objectPath: string,
-  propertyName: string,
-  options: GetPropertyOptions
+  client: { getProperty<T>(args: GetPropertyArgs): Promise<T | undefined> },
+  args: GetPropertyArgs
 ): Promise<number> => {
-  const value = await client.getProperty<number>(objectPath, propertyName, options);
+  const value = await client.getProperty<number>(args);
 
   expect(typeof value).toBe("number");
   return value as number;
 };
 
 const setCounter = async (
-  client: { setProperty(objectPath: string, propertyName: string, propertyValue: unknown, options?: SetPropertyOptions): Promise<unknown> },
-  objectPath: string,
-  propertyName: string,
-  value: number,
-  options: SetPropertyOptions
+  client: { setProperty(args: SetPropertyArgs): Promise<unknown> },
+  args: SetPropertyArgs
 ): Promise<void> => {
-  await client.setProperty(objectPath, propertyName, value, options);
+  await client.setProperty(args);
 };

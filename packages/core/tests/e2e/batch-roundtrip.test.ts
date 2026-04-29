@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { SetPropertyOptions } from "../../src/index.js";
+import type { SetPropertyArgs } from "../../src/index.js";
 import {
   acquireFixture,
   releaseFixture,
@@ -31,21 +31,19 @@ batchRoundtripTest(
 
       // Reset Counter to baseline before batch operations
       currentStep = "reset Counter to baseline";
-      await clients.http.setProperty(
-        contract.objectPath,
-        contract.propertyName,
-        contract.baselineValue,
-        requestOptions as SetPropertyOptions
-      );
+      await clients.http.setProperty({
+        objectPath: contract.objectPath,
+        propertyName: contract.propertyName,
+        propertyValue: contract.baselineValue,
+        ...requestOptions
+      });
 
       // Batch 1: describe + getProperty + call in one round-trip
       currentStep = "batch describe + getProperty + call";
       const results = await clients.http.batch((b) => {
         b.describe(contract.objectPath);
-        b.getProperty(contract.objectPath, contract.propertyName);
-        b.call(contract.objectPath, contract.functionName, {
-          [contract.functionArgumentName]: contract.httpCallDelta
-        });
+        b.getProperty({ objectPath: contract.objectPath, propertyName: contract.propertyName });
+        b.call({ objectPath: contract.objectPath, functionName: contract.functionName, parameters: { [contract.functionArgumentName]: contract.httpCallDelta } });
       }, requestOptions);
 
       expect(results).toHaveLength(3);
@@ -77,8 +75,8 @@ batchRoundtripTest(
       const writeValue = contract.httpWriteValue;
       currentStep = `batch setProperty(${writeValue}) + getProperty`;
       const writeReadResults = await clients.http.batch((b) => {
-        b.setProperty(contract.objectPath, contract.propertyName, writeValue);
-        b.getProperty(contract.objectPath, contract.propertyName);
+        b.setProperty({ objectPath: contract.objectPath, propertyName: contract.propertyName, propertyValue: writeValue });
+        b.getProperty({ objectPath: contract.objectPath, propertyName: contract.propertyName });
       }, requestOptions);
 
       expect(writeReadResults).toHaveLength(2);
@@ -101,12 +99,13 @@ batchRoundtripTest(
       );
     } finally {
       try {
-        await clients.http.setProperty(
-          contract.objectPath,
-          contract.propertyName,
-          contract.baselineValue,
-          { timeoutMs: launchOptions.requestTimeoutMs, retry: false }
-        );
+        await clients.http.setProperty({
+          objectPath: contract.objectPath,
+          propertyName: contract.propertyName,
+          propertyValue: contract.baselineValue,
+          timeoutMs: launchOptions.requestTimeoutMs,
+          retry: false
+        });
       } catch {}
 
       clients.dispose();

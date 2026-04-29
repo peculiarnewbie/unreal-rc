@@ -64,131 +64,150 @@ const makeHttpClient = (responses: MockResponseEntry[]) => {
   return { client, requests: mock.requests };
 };
 
-// ── Client method overloads ───────────────────────────────────────────
+// ── Client method argument types ──────────────────────────────────────
 
-describe("client method overloads", () => {
-  test("call with positional args produces same body as object args", async () => {
-    const { client, requests } = makeHttpClient([{ body: {}, statusCode: 200 }, { body: {}, statusCode: 200 }]);
+describe("client method argument types", () => {
+  test("call sends correct body and url", async () => {
+    const { client, requests } = makeHttpClient([{ body: {}, statusCode: 200 }]);
 
-    await client.call("/Game/Maps/Main.Main:Actor", "DoThing", { Delta: 5 }, { transaction: true });
-    await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "DoThing", parameters: { Delta: 5 }, transaction: true });
+    await client.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "DoThing",
+      parameters: { Delta: 5 },
+      transaction: true
+    });
 
-    expect(requests[0]?.body).toEqual(requests[1]?.body);
-    expect(requests[0]?.url).toBe(requests[1]?.url);
+    expect(requests[0]?.url).toBe("http://127.0.0.1:30010/remote/object/call");
+    const body = requests[0]?.body as Record<string, unknown> | undefined;
+    expect(body?.objectPath).toBe("/Game/Maps/Main.Main:Actor");
+    expect(body?.functionName).toBe("DoThing");
+    expect(body?.generateTransaction).toBe(true);
   });
 
-  test("getProperty with positional args produces same body as object args", async () => {
-    const { client, requests } = makeHttpClient([{ body: { Counter: 10 }, statusCode: 200 }, { body: { Counter: 10 }, statusCode: 200 }]);
+  test("getProperty sends correct body and url", async () => {
+    const { client, requests } = makeHttpClient([{ body: { Counter: 10 }, statusCode: 200 }]);
 
-    await client.getProperty<number>("/Game/Maps/Main.Main:Actor", "Counter");
     await client.getProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter" });
 
-    expect(requests[0]?.body).toEqual(requests[1]?.body);
-    expect(requests[0]?.url).toBe(requests[1]?.url);
+    expect(requests[0]?.url).toBe("http://127.0.0.1:30010/remote/object/property");
+    const body = requests[0]?.body as Record<string, unknown> | undefined;
+    expect(body?.objectPath).toBe("/Game/Maps/Main.Main:Actor");
+    expect(body?.propertyName).toBe("Counter");
   });
 
-  test("getProperties with positional args produces same body as object args", async () => {
-    const { client, requests } = makeHttpClient([{ body: { Counter: 10 }, statusCode: 200 }, { body: { Counter: 10 }, statusCode: 200 }]);
+  test("getProperties sends correct body and url", async () => {
+    const { client, requests } = makeHttpClient([{ body: { Counter: 10 }, statusCode: 200 }]);
 
-    await client.getProperties("/Game/Maps/Main.Main:Actor");
     await client.getProperties({ objectPath: "/Game/Maps/Main.Main:Actor" });
 
-    expect(requests[0]?.body).toEqual(requests[1]?.body);
-    expect(requests[0]?.url).toBe(requests[1]?.url);
+    expect(requests[0]?.url).toBe("http://127.0.0.1:30010/remote/object/property");
+    const body = requests[0]?.body as Record<string, unknown> | undefined;
+    expect(body?.objectPath).toBe("/Game/Maps/Main.Main:Actor");
   });
 
-  test("setProperty with positional args produces same body as object args", async () => {
-    const { client, requests } = makeHttpClient([{ body: {}, statusCode: 200 }, { body: {}, statusCode: 200 }]);
+  test("setProperty sends correct body and url", async () => {
+    const { client, requests } = makeHttpClient([{ body: {}, statusCode: 200 }]);
 
-    await client.setProperty("/Game/Maps/Main.Main:Actor", "Counter", 42);
-    await client.setProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter", propertyValue: 42 });
+    await client.setProperty({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      propertyName: "Counter",
+      propertyValue: 42
+    });
 
-    expect(requests[0]?.body).toEqual(requests[1]?.body);
-    expect(requests[0]?.url).toBe(requests[1]?.url);
+    expect(requests[0]?.url).toBe("http://127.0.0.1:30010/remote/object/property");
+    const body = requests[0]?.body as Record<string, unknown> | undefined;
+    expect(body?.objectPath).toBe("/Game/Maps/Main.Main:Actor");
+    expect(body?.propertyName).toBe("Counter");
   });
 
-  test("describe with positional args produces same body as object args", async () => {
-    const { client, requests } = makeHttpClient([{ body: { Name: "Test" }, statusCode: 200 }, { body: { Name: "Test" }, statusCode: 200 }]);
+  test("describe sends correct body and url", async () => {
+    const { client, requests } = makeHttpClient([{ body: { Name: "Test" }, statusCode: 200 }]);
 
-    await client.describe("/Game/Maps/Main.Main:Actor");
     await client.describe({ objectPath: "/Game/Maps/Main.Main:Actor" });
 
-    expect(requests[0]?.body).toEqual(requests[1]?.body);
-    expect(requests[0]?.url).toBe(requests[1]?.url);
+    expect(requests[0]?.url).toBe("http://127.0.0.1:30010/remote/object/describe");
+    const body = requests[0]?.body as Record<string, unknown> | undefined;
+    expect(body?.objectPath).toBe("/Game/Maps/Main.Main:Actor");
   });
 
-  test("searchAssets with positional args produces same body as object args", async () => {
-    const { client, requests } = makeHttpClient([{ body: { Assets: [] }, statusCode: 200 }, { body: { Assets: [] }, statusCode: 200 }]);
+  test("searchAssets sends correct body and url", async () => {
+    const { client, requests } = makeHttpClient([{ body: { Assets: [] }, statusCode: 200 }]);
 
-    await client.searchAssets("Chair", { recursivePaths: true });
     await client.searchAssets({ query: "Chair", recursivePaths: true });
 
-    expect(requests[0]?.body).toEqual(requests[1]?.body);
-    expect(requests[0]?.url).toBe(requests[1]?.url);
+    expect(requests[0]?.url).toBe("http://127.0.0.1:30010/remote/search/assets");
+    const body = requests[0]?.body as Record<string, unknown> | undefined;
+    expect(body?.query).toBe("Chair");
   });
 
-  test("thumbnail with positional args produces same body as object args", async () => {
-    const { client, requests } = makeHttpClient([{ body: "data:image/png;base64,abc", statusCode: 200 }, { body: "data:image/png;base64,abc", statusCode: 200 }]);
+  test("thumbnail sends correct body and url", async () => {
+    const { client, requests } = makeHttpClient([{ body: "data:image/png;base64,abc", statusCode: 200 }]);
 
-    await client.thumbnail("/Game/Maps/Main.Main:Actor");
     await client.thumbnail({ objectPath: "/Game/Maps/Main.Main:Actor" });
 
-    expect(requests[0]?.body).toEqual(requests[1]?.body);
-    expect(requests[0]?.url).toBe(requests[1]?.url);
+    expect(requests[0]?.url).toBe("http://127.0.0.1:30010/remote/object/thumbnail");
+    const body = requests[0]?.body as Record<string, unknown> | undefined;
+    expect(body?.objectPath).toBe("/Game/Maps/Main.Main:Actor");
   });
 });
 
-// ── Batch helper overloads ───────────────────────────────────────────
+// ── buildCallRequest ──────────────────────────────────────────────────
 
-describe("batch helper overloads", () => {
-  test("buildCallRequest with positional args matches object args", () => {
-    const positional = buildCallRequest("/Game/Maps/Main.Main:Actor", "DoThing", { Delta: 5 }, { transaction: true });
-    const objectForm = buildCallRequest({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "DoThing", parameters: { Delta: 5 }, transaction: true });
+describe("buildCallRequest", () => {
+  test("produces correct structure", () => {
+    const result = buildCallRequest({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "DoThing",
+      parameters: { Delta: 5 },
+      transaction: true
+    });
 
-    expect(positional).toEqual(objectForm);
+    expect(result.objectPath).toBe("/Game/Maps/Main.Main:Actor");
+    expect(result.functionName).toBe("DoThing");
+    expect(result.generateTransaction).toBe(true);
   });
 });
 
-// ── BatchBuilder method overloads ─────────────────────────────────────
+// ── BatchBuilder method argument types ────────────────────────────────
 
-describe("BatchBuilder method overloads", () => {
-  test("call with positional args matches object args", () => {
-    const b1 = new BatchBuilder();
-    const b2 = new BatchBuilder();
+describe("BatchBuilder argument types", () => {
+  test("call adds correct request", () => {
+    const b = new BatchBuilder();
+    b.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "DoThing",
+      parameters: { Delta: 5 }
+    });
 
-    b1.call("/Game/Maps/Main.Main:Actor", "DoThing", { Delta: 5 });
-    b2.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "DoThing", parameters: { Delta: 5 } });
-
-    expect(b1["getRequests"]()).toEqual(b2["getRequests"]());
+    const requests = (b as { getRequests(): BatchRequestItem[] }).getRequests();
+    expect(requests).toHaveLength(1);
   });
 
-  test("getProperty with positional args matches object args", () => {
-    const b1 = new BatchBuilder();
-    const b2 = new BatchBuilder();
+  test("getProperty adds correct request", () => {
+    const b = new BatchBuilder();
+    b.getProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter" });
 
-    b1.getProperty("/Game/Maps/Main.Main:Actor", "Counter");
-    b2.getProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter" });
-
-    expect(b1["getRequests"]()).toEqual(b2["getRequests"]());
+    const requests = (b as { getRequests(): BatchRequestItem[] }).getRequests();
+    expect(requests).toHaveLength(1);
   });
 
-  test("setProperty with positional args matches object args", () => {
-    const b1 = new BatchBuilder();
-    const b2 = new BatchBuilder();
+  test("setProperty adds correct request", () => {
+    const b = new BatchBuilder();
+    b.setProperty({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      propertyName: "Counter",
+      propertyValue: 42
+    });
 
-    b1.setProperty("/Game/Maps/Main.Main:Actor", "Counter", 42);
-    b2.setProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter", propertyValue: 42 });
-
-    expect(b1["getRequests"]()).toEqual(b2["getRequests"]());
+    const requests = (b as { getRequests(): BatchRequestItem[] }).getRequests();
+    expect(requests).toHaveLength(1);
   });
 
-  test("searchAssets with positional args matches object args", () => {
-    const b1 = new BatchBuilder();
-    const b2 = new BatchBuilder();
+  test("searchAssets adds correct request", () => {
+    const b = new BatchBuilder();
+    b.searchAssets({ query: "Chair", recursivePaths: true });
 
-    b1.searchAssets("Chair", { recursivePaths: true });
-    b2.searchAssets({ query: "Chair", recursivePaths: true });
-
-    expect(b1["getRequests"]()).toEqual(b2["getRequests"]());
+    const requests = (b as { getRequests(): BatchRequestItem[] }).getRequests();
+    expect(requests).toHaveLength(1);
   });
 });

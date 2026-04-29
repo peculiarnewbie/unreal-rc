@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { Effect, Layer, Schema } from "effect";
 import {
   BatchBuilder,
   UnrealRC,
@@ -10,6 +11,15 @@ import {
   type HealthStatus,
   type PingResult
 } from "../src/index.js";
+import { makeFullLayer } from "../src/internal/runtime.js";
+import {
+  TimeoutError,
+  ConnectError,
+  HttpStatusError,
+  DecodeError,
+  UnrealRCService,
+  UnrealRCTest
+} from "../src/effect.js";
 
 // ── Fetch mock helpers ────────────────────────────────────────────────
 
@@ -156,12 +166,12 @@ describe("UnrealRC client", () => {
       { body: { ReturnValue: 123 }, statusCode: 200 }
     ]);
 
-    const response = await client.call(
-      "/Game/Maps/Main.Main:Actor",
-      "IncrementCounter",
-      { Delta: 5 },
-      { transaction: true }
-    );
+    const response = await client.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "IncrementCounter",
+      parameters: { Delta: 5 },
+      transaction: true
+    });
 
     expect(response.ReturnValue).toBe(123);
     expect(requests[0]?.body).toEqual({
@@ -177,8 +187,10 @@ describe("UnrealRC client", () => {
       { body: { OutCounter: 123 }, statusCode: 200 }
     ]);
 
-    const response = await client.call("/Game/Maps/Main.Main:Actor", "IncrementCounter", {
-      Delta: 5
+    const response = await client.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "IncrementCounter",
+      parameters: { Delta: 5 }
     });
 
     expect(response).toEqual({
@@ -193,8 +205,8 @@ describe("UnrealRC client", () => {
       { body: { ReturnValue: 33 }, statusCode: 200 }
     ]);
 
-    const direct = await client.getProperty<number>("/Game/Maps/Main.Main:Actor", "Counter");
-    const fallback = await client.getProperty<number>("/Game/Maps/Main.Main:Actor", "Missing");
+    const direct = await client.getProperty<number>({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter" });
+    const fallback = await client.getProperty<number>({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Missing" });
 
     expect(direct).toBe(9);
     expect(fallback).toBe(33);
@@ -206,9 +218,9 @@ describe("UnrealRC client", () => {
       { body: { ReturnValue: null }, statusCode: 200 }
     ]);
 
-    await expect(client.setProperty("/Game/Maps/Main.Main:Actor", "Counter", 1)).resolves.toEqual({});
+    await expect(client.setProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter", propertyValue: 1 })).resolves.toEqual({});
     await expect(
-      client.setProperty("/Game/Maps/Main.Main:Actor", "Counter", 2, { transaction: true })
+      client.setProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter", propertyValue: 2, transaction: true })
     ).resolves.toEqual({ ReturnValue: null });
 
     expect(requests[0]?.body).toEqual({
@@ -252,9 +264,9 @@ describe("UnrealRC client", () => {
       }
     );
 
-    await client.call("/Game/Maps/Main.Main:Actor", "DoThing", { secret: "request" });
+    await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "DoThing", parameters: { secret: "request" } });
     await expect(
-      client.call("/Game/Maps/Main.Main:Actor", "DoThing", { secret: "request" })
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "DoThing", parameters: { secret: "request" } })
     ).rejects.toBeInstanceOf(TransportRequestError);
 
     expect(requestLogs).toHaveLength(2);
@@ -290,7 +302,7 @@ describe("UnrealRC client", () => {
       { retry: { maxAttempts: 2, delayMs: 0 } }
     );
 
-    const success = await client.call("/Game/Maps/Main.Main:Actor", "GetValue");
+    const success = await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "GetValue" });
 
     await expect(client.info({ retry: false })).rejects.toMatchObject({
       kind: "http_status",
@@ -314,9 +326,9 @@ describe("UnrealRC client", () => {
     ]);
 
     const results = await client.batch((builder) => {
-      builder.call("/Game/Maps/Main.Main:Actor", "ResetFixtures");
+      builder.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "ResetFixtures" });
       builder.describe("/Game/Maps/Main.Main:Actor");
-      builder.getProperty("/Game/Maps/Main.Main:Actor", "Missing");
+      builder.getProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Missing" });
     });
 
     expect(results).toEqual([
@@ -379,7 +391,7 @@ describe("UnrealRC client", () => {
   test("fails fast on invalid input before sending request", async () => {
     const { client, requests } = makeHttpClient([]);
 
-    await expect(client.call("", "Fn")).rejects.toThrow();
+    await expect(client.call({ objectPath: "", functionName: "Fn" })).rejects.toThrow();
     expect(requests).toHaveLength(0);
   });
 
@@ -423,7 +435,7 @@ describe("UnrealRC client", () => {
       }
     });
 
-    await client.call("/Game/Maps/Main.Main:Actor", "Ping");
+    await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
 
     expect(targetUrl).toBe("http://127.0.0.1:30010/remote/object/call");
     expect(requestHeaders).toMatchObject({
@@ -564,9 +576,9 @@ describe("BatchBuilder and protocol builders", () => {
 
   test("exposes pure protocol request builders", () => {
     const builder = new BatchBuilder();
-    builder.call("/Game/Maps/Main.Main:Actor", "Increment", { Delta: 1 }, { transaction: true });
+    builder.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Increment", parameters: { Delta: 1 }, transaction: true });
 
-    expect(buildCallRequest("/Game/Maps/Main.Main:Actor", "Increment", { Delta: 1 }, { transaction: true })).toEqual({
+    expect(buildCallRequest({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Increment", parameters: { Delta: 1 }, transaction: true })).toEqual({
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "Increment",
       parameters: { Delta: 1 },
@@ -941,5 +953,604 @@ describe("onDisconnect and onReconnect", () => {
     // Hooks should never fire for HTTP
     expect(disconnects).toHaveLength(0);
     expect(reconnects).toHaveLength(0);
+  });
+});
+
+// ── Effect API tests ──────────────────────────────────────────────────
+
+const runEffect = <A, E, R>(
+  client: UnrealRC,
+  effect: Effect.Effect<A, E, R>
+): Promise<A> => {
+  const layer = makeFullLayer({
+    transport: "http",
+    http: { baseUrl: "http://127.0.0.1:30010" }
+  });
+  return Effect.runPromise(
+    effect.pipe(Effect.provide(layer)) as Effect.Effect<A, E, never>
+  );
+};
+
+describe("effect API", () => {
+  test("effect.call resolves with normalized response", async () => {
+    const { client } = makeHttpClient([
+      { body: { ReturnValue: 42 }, statusCode: 200 }
+    ]);
+
+    const result = await runEffect(client, client.effect.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "GetValue"
+    }));
+
+    expect(result.ReturnValue).toBe(42);
+  });
+
+  test("effect.call normalizes single-output responses", async () => {
+    const { client } = makeHttpClient([
+      { body: { OutCounter: 99 }, statusCode: 200 }
+    ]);
+
+    const result = await runEffect(client, client.effect.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "GetCounter"
+    }));
+
+    expect(result).toEqual({ OutCounter: 99, ReturnValue: 99 });
+  });
+
+  test("effect.getProperty returns parsed value", async () => {
+    const { client } = makeHttpClient([
+      { body: { Counter: 55 }, statusCode: 200 }
+    ]);
+
+    const result = await runEffect(client, client.effect.getProperty<number>({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      propertyName: "Counter"
+    }));
+
+    expect(result).toBe(55);
+  });
+
+  test("effect.setProperty sends write access", async () => {
+    const { client, requests } = makeHttpClient([
+      { body: { ReturnValue: null }, statusCode: 200 }
+    ]);
+
+    await runEffect(client, client.effect.setProperty({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      propertyName: "Counter",
+      propertyValue: 7
+    }));
+
+    expect(requests[0]?.body).toMatchObject({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      propertyName: "Counter",
+      propertyValue: { Counter: 7 },
+      access: "WRITE_ACCESS"
+    });
+  });
+
+  test("effect.describe returns object metadata", async () => {
+    const { client } = makeHttpClient([
+      { body: { Name: "TestActor", Class: "Actor" }, statusCode: 200 }
+    ]);
+
+    const result = await runEffect(client, client.effect.describe({
+      objectPath: "/Game/Maps/Main.Main:Actor"
+    }));
+
+    expect((result as Record<string, unknown>).Name).toBe("TestActor");
+  });
+
+  test("effect.searchAssets sends query with options", async () => {
+    const { client, requests } = makeHttpClient([
+      { body: { Assets: [] }, statusCode: 200 }
+    ]);
+
+    await runEffect(client, client.effect.searchAssets({
+      query: "Chair",
+      classNames: ["StaticMeshActor"]
+    }));
+
+    expect(requests[0]?.body).toMatchObject({
+      query: "Chair",
+      classNames: ["StaticMeshActor"]
+    });
+  });
+
+  test("effect.info returns server info", async () => {
+    const { client } = makeHttpClient([
+      { body: { HttpPort: 30010 }, statusCode: 200 }
+    ]);
+
+    const result = await runEffect(client, client.effect.info());
+
+    expect((result as Record<string, unknown>).HttpPort).toBe(30010);
+  });
+
+  test("effect.event sends event payload", async () => {
+    const { client, requests } = makeHttpClient([
+      { body: {}, statusCode: 200 }
+    ]);
+
+    await runEffect(client, client.effect.event({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      propertyName: "Health"
+    }));
+
+    expect(requests[0]?.body).toMatchObject({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      propertyName: "Health"
+    });
+  });
+
+  test("effect.thumbnail sends thumbnail request", async () => {
+    const { client, requests } = makeHttpClient([
+      { body: { resolution: [128, 128] }, statusCode: 200 }
+    ]);
+
+    await runEffect(client, client.effect.thumbnail({
+      objectPath: "/Game/Maps/Main.Main:Actor"
+    }));
+
+    expect(requests[0]?.body).toMatchObject({
+      objectPath: "/Game/Maps/Main.Main:Actor"
+    });
+  });
+
+  test("effect.batch correlates responses", async () => {
+    const { client } = makeHttpClient([
+      {
+        body: {
+          Responses: [
+            { RequestId: 0, ResponseCode: 200, ResponseBody: { ReturnValue: "ok" } }
+          ]
+        },
+        statusCode: 200
+      }
+    ]);
+
+    const results = await runEffect(client, client.effect.batch((builder) => {
+      builder.call({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        functionName: "GetValue"
+      });
+    }));
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.statusCode).toBe(200);
+    expect(results[0]?.body).toEqual({ ReturnValue: "ok" });
+  });
+
+  test("effect.ping returns reachable true on success", async () => {
+    const { client } = makeHttpClient([
+      { body: {}, statusCode: 200 }
+    ]);
+
+    const result = await runEffect(client, client.effect.ping());
+
+    expect(result.reachable).toBe(true);
+    expect(typeof result.latencyMs).toBe("number");
+  });
+
+  test("effect.ping returns reachable false on failure", async () => {
+    const { client } = makeHttpClient([
+      new Error("connection refused")
+    ]);
+
+    const result = await runEffect(client, client.effect.ping());
+
+    expect(result.reachable).toBe(false);
+    expect(result.latencyMs).toBeUndefined();
+  });
+
+  test("effect.pendingRequests returns empty when idle", async () => {
+    const { client } = makeHttpClient([]);
+
+    const pending = await runEffect(client, client.effect.pendingRequests());
+
+    expect(pending).toEqual([]);
+  });
+
+  test("effect methods fail with tagged TransportError", async () => {
+    const { client } = makeHttpClient([
+      { body: { message: "busy" }, statusCode: 503 }
+    ]);
+
+    try {
+      await runEffect(client, client.effect.info());
+      expect.unreachable("should have thrown");
+    } catch (e) {
+      expect(e).toBeInstanceOf(HttpStatusError);
+      expect((e as HttpStatusError)._tag).toBe("HttpStatusError");
+      expect((e as HttpStatusError).statusCode).toBe(503);
+    }
+  });
+
+  test("effect.call can be narrowed with catchTag", async () => {
+    const { client } = makeHttpClient([
+      { body: { message: "busy" }, statusCode: 503 }
+    ]);
+
+    const program = client.effect.info().pipe(
+      Effect.catchTag("HttpStatusError", (e) =>
+        Effect.succeed({ HttpPort: e.statusCode, Routes: {} })
+      )
+    );
+
+    const result = await runEffect(client, program);
+
+    expect((result as Record<string, unknown>).HttpPort).toBe(503);
+  });
+
+  test("effect methods skip validation when validateResponses is false", async () => {
+    const { client } = makeHttpClient(
+      [{ body: 123, statusCode: 200 }],
+      { validateResponses: false }
+    );
+
+    const result = await runEffect(client, client.effect.info());
+
+    expect(result).toBe(123);
+  });
+});
+
+// ── Phase 5: request / requestRaw tests ─────────────────────────────
+
+describe("request / requestRaw (Promise API)", () => {
+  test("request without schema returns raw body", async () => {
+    const { client } = makeHttpClient([{ body: { custom: "data" }, statusCode: 200 }]);
+    const result = await client.request({ verb: "GET", url: "/custom" });
+    expect(result).toEqual({ custom: "data" });
+  });
+
+  test("request with schema decodes response", async () => {
+    const NumberResult = Schema.Struct({ value: Schema.Number });
+    const { client } = makeHttpClient([{ body: { value: 42 }, statusCode: 200 }]);
+    const result = await client.request({ verb: "GET", url: "/custom", responseSchema: NumberResult });
+    expect(result).toEqual({ value: 42 });
+  });
+
+  test("requestRaw returns full TransportResponse shape", async () => {
+    const { client, requests } = makeHttpClient([{ body: { key: "val" }, statusCode: 201 }]);
+    const result = await client.requestRaw({ verb: "POST", url: "/custom", body: { input: 1 } });
+    expect(result.body).toEqual({ key: "val" });
+    expect(result.statusCode).toBe(201);
+    // Verify body was sent
+    expect(requests[0]?.body).toEqual({ input: 1 });
+  });
+
+  test("request fires request and response hooks", async () => {
+    const hookCalls: string[] = [];
+    const { client } = makeHttpClient(
+      [{ body: { ok: true }, statusCode: 200 }],
+      {
+        onRequest: () => hookCalls.push("request"),
+        onResponse: () => hookCalls.push("response"),
+      }
+    );
+    await client.request({ verb: "GET", url: "/custom" });
+    expect(hookCalls).toEqual(["request", "response"]);
+  });
+
+  test("requestRaw fires error hook on HTTP failure", async () => {
+    const errors: unknown[] = [];
+    const { client } = makeHttpClient(
+      [{ body: {}, statusCode: 500 }],
+      { onError: (ctx) => errors.push(ctx) }
+    );
+    await expect(
+      client.requestRaw({ verb: "GET", url: "/custom", retry: false })
+    ).rejects.toBeInstanceOf(TransportRequestError);
+    expect(errors).toHaveLength(1);
+  });
+
+  test("request rejects with TransportRequestError on HTTP error status", async () => {
+    const { client } = makeHttpClient([{ body: { error: "nope" }, statusCode: 503 }]);
+    await expect(
+      client.request({ verb: "GET", url: "/custom", retry: false })
+    ).rejects.toMatchObject({ kind: "http_status", statusCode: 503 });
+  });
+
+  test("request supports retry", async () => {
+    const { client, requests } = makeHttpClient(
+      [
+        { body: { error: "busy" }, statusCode: 503 },
+        { body: { ok: true }, statusCode: 200 },
+      ],
+      { retry: { maxAttempts: 2, delayMs: 0 } }
+    );
+    const result = await client.request({ verb: "GET", url: "/custom" });
+    expect(result).toEqual({ ok: true });
+    expect(requests).toHaveLength(2);
+  });
+});
+
+describe("request / requestRaw (Effect API)", () => {
+  test("effect.request without schema returns raw body", async () => {
+    const { client } = makeHttpClient([{ body: { raw: "data" }, statusCode: 200 }]);
+    const result = await runEffect(client, client.effect.request({ verb: "GET", url: "/custom" }));
+    expect(result).toEqual({ raw: "data" });
+  });
+
+  test("effect.request with schema decodes response", async () => {
+    const NumberResult = Schema.Struct({ value: Schema.Number });
+    const { client } = makeHttpClient([{ body: { value: 99 }, statusCode: 200 }]);
+    const result = await runEffect(client, client.effect.request({ verb: "GET", url: "/custom", responseSchema: NumberResult }));
+    expect(result).toEqual({ value: 99 });
+  });
+
+  test("effect.requestRaw returns TransportResponse", async () => {
+    const { client } = makeHttpClient([{ body: { a: 1 }, statusCode: 200 }]);
+    const result = await runEffect(client, client.effect.requestRaw({ verb: "GET", url: "/custom" }));
+    expect(result.body).toEqual({ a: 1 });
+    expect(result.statusCode).toBe(200);
+  });
+
+  test("effect.requestRaw fails with tagged TransportError on HTTP error", async () => {
+    const { client } = makeHttpClient([{ body: {}, statusCode: 503 }]);
+    try {
+      await runEffect(client, client.effect.requestRaw({ verb: "GET", url: "/custom", retry: false }));
+      expect.unreachable("should have thrown");
+    } catch (e) {
+      expect((e as HttpStatusError)._tag).toBe("HttpStatusError");
+      expect((e as HttpStatusError).statusCode).toBe(503);
+    }
+  });
+
+  test("effect.request retries on transient failures", async () => {
+    const { client, requests } = makeHttpClient(
+      [
+        { body: {}, statusCode: 502 },
+        { body: { retried: true }, statusCode: 200 },
+      ]
+    );
+    // Note: retry is controlled per-call or client-level
+    const result = await runEffect(client, client.effect.request({ verb: "GET", url: "/custom", retry: { maxAttempts: 2, delayMs: 0 } }));
+    expect(result).toEqual({ retried: true });
+    expect(requests).toHaveLength(2);
+  });
+});
+
+// ── Phase 6: callReturn tests ────────────────────────────────────────
+
+describe("callReturn (Promise API)", () => {
+  const ReturnSchema = Schema.Struct({ score: Schema.Number });
+
+  test("decodes ReturnValue with provided schema", async () => {
+    const { client } = makeHttpClient([
+      { body: { ReturnValue: { score: 100 } }, statusCode: 200 }
+    ]);
+    const result = await client.callReturn({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "GetScore",
+      returnSchema: ReturnSchema
+    });
+    expect(result).toEqual({ score: 100 });
+  });
+
+  test("normalizes single-key response then decodes ReturnValue", async () => {
+    const { client } = makeHttpClient([
+      { body: { OutScore: { score: 75 } }, statusCode: 200 }
+    ]);
+    const result = await client.callReturn({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "GetScore",
+      returnSchema: ReturnSchema
+    });
+    expect(result).toEqual({ score: 75 });
+  });
+
+  test("throws TransportRequestError when ReturnValue is missing", async () => {
+    const { client } = makeHttpClient([
+      { body: { NotReturnValue: {} }, statusCode: 200 }
+    ]);
+    await expect(
+      client.callReturn({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        functionName: "GetScore",
+        returnSchema: ReturnSchema
+      })
+    ).rejects.toMatchObject({ kind: "decode" });
+  });
+
+  test("throws TransportRequestError when ReturnValue fails schema decode", async () => {
+    const { client } = makeHttpClient([
+      { body: { ReturnValue: { score: "not-a-number" } }, statusCode: 200 }
+    ]);
+    await expect(
+      client.callReturn({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        functionName: "GetScore",
+        returnSchema: ReturnSchema
+      })
+    ).rejects.toMatchObject({ kind: "decode" });
+  });
+
+  test("passes through transaction and parameters", async () => {
+    const { client, requests } = makeHttpClient([
+      { body: { ReturnValue: { score: 1 } }, statusCode: 200 }
+    ]);
+    await client.callReturn({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "AddScore",
+      parameters: { Delta: 5 },
+      transaction: true,
+      returnSchema: ReturnSchema
+    });
+    expect(requests[0]?.body).toMatchObject({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "AddScore",
+      parameters: { Delta: 5 },
+      generateTransaction: true
+    });
+  });
+
+  test("fires hooks", async () => {
+    const hookCalls: string[] = [];
+    const { client } = makeHttpClient(
+      [{ body: { ReturnValue: { score: 1 } }, statusCode: 200 }],
+      {
+        onRequest: () => hookCalls.push("request"),
+        onResponse: () => hookCalls.push("response"),
+      }
+    );
+    await client.callReturn({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "GetScore",
+      returnSchema: ReturnSchema
+    });
+    expect(hookCalls).toEqual(["request", "response"]);
+  });
+});
+
+describe("callReturn (Effect API)", () => {
+  const ReturnSchema = Schema.Struct({ score: Schema.Number });
+
+  test("effect.callReturn decodes ReturnValue with schema", async () => {
+    const { client } = makeHttpClient([
+      { body: { ReturnValue: { score: 42 } }, statusCode: 200 }
+    ]);
+    const result = await runEffect(client, client.effect.callReturn({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "GetScore",
+      returnSchema: ReturnSchema
+    }));
+    expect(result).toEqual({ score: 42 });
+  });
+
+  test("effect.callReturn normalizes single-key response", async () => {
+    const { client } = makeHttpClient([
+      { body: { OutScore: { score: 88 } }, statusCode: 200 }
+    ]);
+    const result = await runEffect(client, client.effect.callReturn({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "GetScore",
+      returnSchema: ReturnSchema
+    }));
+    expect(result).toEqual({ score: 88 });
+  });
+
+  test("effect.callReturn fails with DecodeError when ReturnValue missing", async () => {
+    const { client } = makeHttpClient([
+      { body: { NotReturnValue: {} }, statusCode: 200 }
+    ]);
+    try {
+      await runEffect(client, client.effect.callReturn({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        functionName: "GetScore",
+        returnSchema: ReturnSchema
+      }));
+      expect.unreachable("should have thrown");
+    } catch (e) {
+      expect((e as DecodeError)._tag).toBe("DecodeError");
+      expect((e as DecodeError).message).toContain("ReturnValue");
+    }
+  });
+
+  test("effect.callReturn fails with DecodeError on schema mismatch", async () => {
+    const { client } = makeHttpClient([
+      { body: { ReturnValue: { score: "bad" } }, statusCode: 200 }
+    ]);
+    try {
+      await runEffect(client, client.effect.callReturn({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        functionName: "GetScore",
+        returnSchema: ReturnSchema
+      }));
+      expect.unreachable("should have thrown");
+    } catch (e) {
+      expect((e as DecodeError)._tag).toBe("DecodeError");
+    }
+  });
+
+  test("effect.callReturn can be narrowed with catchTag", async () => {
+    const { client } = makeHttpClient([
+      { body: { ReturnValue: { score: "bad" } }, statusCode: 200 }
+    ]);
+
+    const program = client.effect.callReturn({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "GetScore",
+      returnSchema: ReturnSchema
+    }).pipe(
+      Effect.catchTag("DecodeError", () =>
+        Effect.succeed({ score: -1 })
+      )
+    );
+
+    const result = await runEffect(client, program);
+    expect(result).toEqual({ score: -1 });
+  });
+});
+
+// ── Phase 7: Layer / Service tests ───────────────────────────────────
+
+describe("UnrealRCService (Phase 7)", () => {
+  test("service tag is defined and has correct shape", () => {
+    expect(UnrealRCService).toBeDefined();
+    // The service tag should be a valid Effect tag
+    expect(typeof UnrealRCService.key).toBe("string");
+  });
+
+  test("UnrealRCTest provides the service", async () => {
+    // Verify the test layer can be used in an Effect program
+    const program = Effect.gen(function* () {
+      const svc = yield* UnrealRCService;
+      expect(svc).toBeDefined();
+      // All methods should exist
+      expect(typeof svc.call).toBe("function");
+      expect(typeof svc.getProperty).toBe("function");
+      expect(typeof svc.request).toBe("function");
+      expect(typeof svc.requestRaw).toBe("function");
+      expect(typeof svc.callReturn).toBe("function");
+    });
+
+    await expect(
+      Effect.runPromise(program.pipe(Effect.provide(UnrealRCTest)))
+    ).resolves.toBeUndefined();
+  });
+
+  test("UnrealRCTest stubs throw on unimplemented methods", async () => {
+    const program = Effect.gen(function* () {
+      const svc = yield* UnrealRCService;
+      yield* svc.call({ objectPath: "/Foo", functionName: "Bar" });
+    });
+
+    await expect(
+      Effect.runPromise(program.pipe(Effect.provide(UnrealRCTest)))
+    ).rejects.toThrow(/UnrealRCTest.*call/);
+  });
+
+  test("service can be provided with a custom implementation", async () => {
+    const customLayer = Layer.succeed(UnrealRCService, {
+      call: () => Effect.succeed({ ReturnValue: "mocked" }),
+    } as unknown as Record<string, Function>);
+
+    const program = Effect.gen(function* () {
+      const svc = yield* UnrealRCService;
+      const result = yield* svc.call({ objectPath: "/Foo", functionName: "Bar" });
+      return result;
+    }).pipe(
+      Effect.provide(customLayer)
+    ) as Effect.Effect<{ ReturnValue: string }, never, never>;
+
+    const result = await Effect.runPromise(program);
+    expect((result as Record<string, unknown>).ReturnValue).toBe("mocked");
+  });
+
+  test("tagged errors are exported from effect subpath", () => {
+    // Verify all tagged error classes are available from unreal-rc/effect
+    expect(TimeoutError).toBeDefined();
+    expect(ConnectError).toBeDefined();
+    expect(HttpStatusError).toBeDefined();
+    expect(DecodeError).toBeDefined();
+
+    // Verify tag pattern
+    const err = new TimeoutError({ message: "test", verb: "GET", url: "/test" });
+    expect(err._tag).toBe("TimeoutError");
+    expect(err.message).toBe("test");
+    expect(err.verb).toBe("GET");
+    expect(err.url).toBe("/test");
   });
 });

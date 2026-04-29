@@ -29,7 +29,7 @@ searchAssetsTest(
       await waitForRemoteControlHttp(handle, launchOptions);
 
       currentStep = "search for fixture Blueprint by name";
-      const byName = await clients.http.searchAssets("E2EFixture", requestOptions);
+      const byName = await clients.http.searchAssets({ query: "E2EFixture", ...requestOptions });
       const nameResults = byName.Assets ?? byName.Results ?? [];
 
       expect(nameResults.length).toBeGreaterThan(0);
@@ -42,20 +42,21 @@ searchAssetsTest(
       ).toBe(true);
 
       currentStep = "search by package path /Game/Maps";
-      const byPath = await clients.http.searchAssets("", {
-        ...requestOptions,
+      const byPath = await clients.http.searchAssets({
+        query: "",
         packagePaths: ["/Game/Maps"],
-        recursivePaths: true
+        recursivePaths: true,
+        ...requestOptions
       });
       const pathResults = byPath.Assets ?? byPath.Results ?? [];
 
       expect(pathResults.length).toBeGreaterThan(0);
 
       currentStep = "search with nonsense query returns empty results";
-      const nonsense = await clients.http.searchAssets(
-        "ZZZ_NonexistentAsset_XYZ_999",
-        requestOptions
-      );
+      const nonsense = await clients.http.searchAssets({
+        query: "ZZZ_NonexistentAsset_XYZ_999",
+        ...requestOptions
+      });
       const nonsenseResults = nonsense.Assets ?? nonsense.Results ?? [];
 
       expect(nonsenseResults).toHaveLength(0);

@@ -78,11 +78,11 @@ const makeHttpClient = (
 describe("BatchBuilder", () => {
   test("assigns sequential request IDs starting from 0", () => {
     const builder = new BatchBuilder();
-    expect(builder.call("/A", "Fn")).toBe(0);
+    expect(builder.call({ objectPath: "/A", functionName: "Fn" })).toBe(0);
     expect(builder.describe("/B")).toBe(1);
-    expect(builder.getProperty("/C", "Prop")).toBe(2);
-    expect(builder.setProperty("/D", "Prop", 1)).toBe(3);
-    expect(builder.searchAssets("query")).toBe(4);
+    expect(builder.getProperty({ objectPath: "/C", propertyName: "Prop" })).toBe(2);
+    expect(builder.setProperty({ objectPath: "/D", propertyName: "Prop", propertyValue: 1 })).toBe(3);
+    expect(builder.searchAssets({ query: "query" })).toBe(4);
     expect(builder.request("GET", "/remote/info")).toBe(5);
   });
 
@@ -99,7 +99,7 @@ describe("BatchBuilder", () => {
 
   test("call builds correct request shape", () => {
     const builder = new BatchBuilder();
-    builder.call("/Game/Maps/Main.Main:Actor", "Add", { Delta: 5 }, { transaction: true });
+    builder.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Add", parameters: { Delta: 5 }, transaction: true });
 
     const requests = builder.getRequests();
     expect(requests[0]).toEqual({
@@ -117,7 +117,7 @@ describe("BatchBuilder", () => {
 
   test("call without parameters omits parameters field", () => {
     const builder = new BatchBuilder();
-    builder.call("/Game/Maps/Main.Main:Actor", "Reset");
+    builder.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Reset" });
 
     const body = builder.getRequests()[0]?.Body as Record<string, unknown>;
     expect(body.parameters).toBeUndefined();
@@ -125,7 +125,7 @@ describe("BatchBuilder", () => {
 
   test("getProperty defaults to READ_ACCESS", () => {
     const builder = new BatchBuilder();
-    builder.getProperty("/Game/Maps/Main.Main:Actor", "Counter");
+    builder.getProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter" });
 
     const body = builder.getRequests()[0]?.Body as Record<string, unknown>;
     expect(body.access).toBe("READ_ACCESS");
@@ -133,7 +133,7 @@ describe("BatchBuilder", () => {
 
   test("getProperty with explicit access mode", () => {
     const builder = new BatchBuilder();
-    builder.getProperty("/Game/Maps/Main.Main:Actor", "Counter", "WRITE_ACCESS");
+    builder.getProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter", access: "WRITE_ACCESS" });
 
     const body = builder.getRequests()[0]?.Body as Record<string, unknown>;
     expect(body.access).toBe("WRITE_ACCESS");
@@ -141,7 +141,7 @@ describe("BatchBuilder", () => {
 
   test("setProperty defaults to WRITE_ACCESS", () => {
     const builder = new BatchBuilder();
-    builder.setProperty("/Game/Maps/Main.Main:Actor", "Counter", 10);
+    builder.setProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter", propertyValue: 10 });
 
     const body = builder.getRequests()[0]?.Body as Record<string, unknown>;
     expect(body.access).toBe("WRITE_ACCESS");
@@ -150,7 +150,7 @@ describe("BatchBuilder", () => {
 
   test("setProperty with transaction uses WRITE_TRANSACTION_ACCESS", () => {
     const builder = new BatchBuilder();
-    builder.setProperty("/Game/Maps/Main.Main:Actor", "Counter", 10, { transaction: true });
+    builder.setProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter", propertyValue: 10, transaction: true });
 
     const body = builder.getRequests()[0]?.Body as Record<string, unknown>;
     expect(body.access).toBe("WRITE_TRANSACTION_ACCESS");
@@ -158,9 +158,7 @@ describe("BatchBuilder", () => {
 
   test("setProperty with explicit access overrides default", () => {
     const builder = new BatchBuilder();
-    builder.setProperty("/Game/Maps/Main.Main:Actor", "Counter", 10, {
-      access: "WRITE_TRANSACTION_ACCESS"
-    });
+    builder.setProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter", propertyValue: 10, access: "WRITE_TRANSACTION_ACCESS" });
 
     const body = builder.getRequests()[0]?.Body as Record<string, unknown>;
     expect(body.access).toBe("WRITE_TRANSACTION_ACCESS");
@@ -180,7 +178,8 @@ describe("BatchBuilder", () => {
 
   test("searchAssets builds correct request shape", () => {
     const builder = new BatchBuilder();
-    builder.searchAssets("Chair", {
+    builder.searchAssets({
+      query: "Chair",
       classNames: ["StaticMesh"],
       recursivePaths: true
     });
@@ -228,7 +227,7 @@ describe("BatchBuilder", () => {
 
 describe("pure protocol builders", () => {
   test("buildCallRequest without transaction omits generateTransaction", () => {
-    const req = buildCallRequest("/Game/Maps/Main.Main:Actor", "Ping");
+    const req = buildCallRequest({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
     expect(req.generateTransaction).toBeUndefined();
     expect(req.parameters).toBeUndefined();
   });
@@ -295,11 +294,11 @@ describe("pure protocol builders", () => {
   });
 
   test("buildCallRequest rejects empty objectPath", () => {
-    expect(() => buildCallRequest("", "Fn")).toThrow();
+    expect(() => buildCallRequest({ objectPath: "", functionName: "Fn" })).toThrow();
   });
 
   test("buildCallRequest rejects empty functionName", () => {
-    expect(() => buildCallRequest("/Game/Maps/Main.Main:Actor", "")).toThrow();
+    expect(() => buildCallRequest({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "" })).toThrow();
   });
 
   test("buildDescribeRequest rejects empty objectPath", () => {
@@ -482,7 +481,7 @@ describe("client.batch", () => {
     ]);
 
     const results = await client.batch((b) => {
-      b.call("/Game/Maps/Main.Main:Actor", "GetValue");
+      b.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "GetValue" });
     });
 
     expect(results).toHaveLength(1);
@@ -504,8 +503,8 @@ describe("client.batch", () => {
     ]);
 
     const results = await client.batch((b) => {
-      b.call("/Game/Maps/Main.Main:Actor", "Fail1");
-      b.call("/Game/Maps/Main.Main:Actor", "Fail2");
+      b.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Fail1" });
+      b.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Fail2" });
     });
 
     expect(results).toHaveLength(2);
@@ -529,10 +528,10 @@ describe("client.batch", () => {
     ]);
 
     const results = await client.batch((b) => {
-      b.call("/Game/Maps/Main.Main:Actor", "Reset");
+      b.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Reset" });
       b.describe("/Game/Maps/Main.Main:Actor");
-      b.getProperty("/Game/Maps/Main.Main:Actor", "Counter");
-      b.setProperty("/Game/Maps/Main.Main:Actor", "Counter", 0);
+      b.getProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter" });
+      b.setProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter", propertyValue: 0 });
     });
 
     expect(results).toHaveLength(4);
@@ -552,7 +551,7 @@ describe("client.batch", () => {
 
     await expect(
       client.batch((b) => {
-        b.call("/Game/Maps/Main.Main:Actor", "Ping");
+        b.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
       })
     ).rejects.toMatchObject({
       kind: "http_status",
@@ -574,7 +573,7 @@ describe("client.batch", () => {
 
     const results = await client.batch(async (b) => {
       await Promise.resolve();
-      b.call("/Game/Maps/Main.Main:Actor", "Ping");
+      b.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
     });
 
     expect(results).toHaveLength(1);

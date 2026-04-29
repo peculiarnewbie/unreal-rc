@@ -3,28 +3,26 @@ export { UnrealRC } from "./client.js";
 export type {
   BatchOptions,
   CallArgs,
-  CallOptions,
+  CallReturnArgs,
   DescribeArgs,
-  DescribeOptions,
   ErrorHookContext,
   EventOptions,
   GetPropertiesArgs,
   GetPropertyArgs,
-  GetPropertyOptions,
   HealthWatcher,
   PayloadRedactionContext,
   PingOptions,
+  RequestArgs,
   RequestHookContext,
+  RequestOptionsBase,
+  RequestRawArgs,
   ResponseHookContext,
   RetryContext,
   RetryOptions,
   RetryPolicy,
   SearchAssetsArgs,
-  SearchAssetsOptions,
   SetPropertyArgs,
-  SetPropertyOptions,
   ThumbnailArgs,
-  ThumbnailOptions,
   UnrealRCOptions,
   WatchHealthOptions,
   WritableAccessMode
@@ -41,7 +39,6 @@ export {
 export type {
   BatchResult,
   BuildCallArgs,
-  BuildCallRequestOptions,
   BuildGetPropertyArgs,
   BuildPropertyRequestOptions,
   BuildSearchAssetsArgs,
@@ -61,9 +58,10 @@ export {
 } from "./helpers.js";
 
 // ── Errors ─────────────────────────────────────────────────────────────
-export { TransportRequestError, toTransportRequestError } from "./errors.js";
+export { TransportRequestError, toPublicError, toTransportRequestError } from "./errors.js";
 
 // ── Types ──────────────────────────────────────────────────────────────
+export type { TransportResponse } from "../internal/transport.js";
 export type {
   AccessMode,
   AssetInfo,

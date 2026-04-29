@@ -12,11 +12,11 @@ const ue = new UnrealRC({
 
 const hero = "/Game/Level.Level:PersistentLevel.Hero";
 
-await ue.setProperty(
-  hero,
-  "RelativeLocation",
-  vector(100, 0, 240)
-);`;
+await ue.setProperty({
+  objectPath: hero,
+  propertyName: "RelativeLocation",
+  propertyValue: vector(100, 0, 240)
+});`;
 
 const withoutSnippet = `const ws = new WebSocket("ws://localhost:30020");
 const pending = new Map();
@@ -134,11 +134,15 @@ function HeroGraphic() {
           <span class="tooltip-kind">method</span>
           <span>UnrealRC.setProperty</span>
         </div>
-        <pre class="tooltip-sig">{`(objectPath: string,
- propertyName: string,
- propertyValue: unknown,
- options?: SetPropertyOptions
-): Promise<ObjectPropertyResponse>`}</pre>
+        <pre class="tooltip-sig">{`(args: {
+ objectPath: string;
+ propertyName: string;
+ propertyValue: unknown;
+ access?: WritableAccessMode;
+ transaction?: boolean;
+ timeoutMs?: number;
+ retry?: RetryOptions;
+}): Promise<ObjectPropertyResponse>`}</pre>
       </div>
     </aside>
   );

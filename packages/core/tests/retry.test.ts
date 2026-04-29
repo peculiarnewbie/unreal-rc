@@ -76,7 +76,7 @@ describe("retry logic", () => {
       { retry: { maxAttempts: 3, delayMs: 0 } }
     );
 
-    const result = await client.call("/Game/Maps/Main.Main:Actor", "Ping");
+    const result = await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
     expect(result.ReturnValue).toBe(1);
     expect(requests).toHaveLength(2);
   });
@@ -90,7 +90,7 @@ describe("retry logic", () => {
       { retry: { maxAttempts: 2, delayMs: 0 } }
     );
 
-    const result = await client.call("/Game/Maps/Main.Main:Actor", "Ping");
+    const result = await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
     expect(result.ReturnValue).toBe(2);
     expect(requests).toHaveLength(2);
   });
@@ -104,7 +104,7 @@ describe("retry logic", () => {
       { retry: { maxAttempts: 2, delayMs: 0 } }
     );
 
-    const result = await client.call("/Game/Maps/Main.Main:Actor", "Ping");
+    const result = await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
     expect(result.ReturnValue).toBe(3);
     expect(requests).toHaveLength(2);
   });
@@ -119,7 +119,7 @@ describe("retry logic", () => {
     );
 
     await expect(
-      client.call("/Game/Maps/Main.Main:Actor", "Ping")
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" })
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(requests).toHaveLength(1);
   });
@@ -134,7 +134,7 @@ describe("retry logic", () => {
     );
 
     await expect(
-      client.call("/Game/Maps/Main.Main:Actor", "Ping")
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" })
     ).rejects.toMatchObject({ statusCode: 404 });
     expect(requests).toHaveLength(1);
   });
@@ -149,7 +149,7 @@ describe("retry logic", () => {
     );
 
     await expect(
-      client.call("/Game/Maps/Main.Main:Actor", "Ping")
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" })
     ).rejects.toMatchObject({ statusCode: 500 });
     expect(requests).toHaveLength(1);
   });
@@ -165,7 +165,7 @@ describe("retry logic", () => {
     );
 
     await expect(
-      client.call("/Game/Maps/Main.Main:Actor", "Ping")
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" })
     ).rejects.toMatchObject({
       kind: "http_status",
       statusCode: 503
@@ -183,7 +183,7 @@ describe("retry logic", () => {
     );
 
     await expect(
-      client.call("/Game/Maps/Main.Main:Actor", "Ping")
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" })
     ).rejects.toMatchObject({ statusCode: 503 });
     expect(requests).toHaveLength(1);
   });
@@ -198,7 +198,7 @@ describe("retry logic", () => {
     );
 
     await expect(
-      client.call("/Game/Maps/Main.Main:Actor", "Ping")
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" })
     ).rejects.toMatchObject({ statusCode: 503 });
     expect(requests).toHaveLength(1);
   });
@@ -213,7 +213,7 @@ describe("retry logic", () => {
     );
 
     await expect(
-      client.call("/Game/Maps/Main.Main:Actor", "Ping", undefined, { retry: false })
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping", retry: false })
     ).rejects.toMatchObject({ statusCode: 503 });
     expect(requests).toHaveLength(1);
   });
@@ -228,12 +228,11 @@ describe("retry logic", () => {
       { retry: { maxAttempts: 2, delayMs: 0 } }
     );
 
-    const result = await client.call(
-      "/Game/Maps/Main.Main:Actor",
-      "Ping",
-      undefined,
-      { retry: { maxAttempts: 3, delayMs: 0 } }
-    );
+    const result = await client.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "Ping",
+      retry: { maxAttempts: 3, delayMs: 0 }
+    });
 
     expect(result.ReturnValue).toBe(10);
     expect(requests).toHaveLength(3);
@@ -248,7 +247,7 @@ describe("retry logic", () => {
       { retry: { maxAttempts: 2, delayMs: 0 } }
     );
 
-    const result = await client.call("/Game/Maps/Main.Main:Actor", "Ping");
+    const result = await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
     expect(result.ReturnValue).toBe(77);
     expect(requests).toHaveLength(2);
   });
@@ -269,10 +268,10 @@ describe("retry logic", () => {
     const info = await client.info();
     expect(info.HttpRoutes).toEqual([]);
 
-    const desc = await client.describe("/Game/Maps/Main.Main:Actor");
+    const desc = await client.describe({ objectPath: "/Game/Maps/Main.Main:Actor" });
     expect(desc.Name).toBe("Actor");
 
-    const value = await client.getProperty<number>("/Game/Maps/Main.Main:Actor", "Counter");
+    const value = await client.getProperty<number>({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter" });
     expect(value).toBe(42);
 
     expect(requests).toHaveLength(6);
@@ -287,7 +286,7 @@ describe("retry logic", () => {
       { retry: true }
     );
 
-    const result = await client.call("/Game/Maps/Main.Main:Actor", "Ping");
+    const result = await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
     expect(result.ReturnValue).toBe(5);
     expect(requests).toHaveLength(2);
   });
@@ -307,7 +306,7 @@ describe("retry logic", () => {
       }
     );
 
-    const result = await client.call("/Game/Maps/Main.Main:Actor", "Ping");
+    const result = await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
     expect(result.ReturnValue).toBe(8);
     expect(requests).toHaveLength(2);
   });
@@ -328,7 +327,7 @@ describe("retry logic", () => {
     );
 
     await expect(
-      client.call("/Game/Maps/Main.Main:Actor", "Ping")
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" })
     ).rejects.toMatchObject({ statusCode: 503 });
     expect(requests).toHaveLength(1);
   });

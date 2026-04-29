@@ -21,10 +21,6 @@ import type {
   SearchAssetsRequest
 } from "../public/types.js";
 
-export interface BuildCallRequestOptions {
-  transaction?: boolean | undefined;
-}
-
 export interface BuildCallArgs {
   readonly objectPath: string;
   readonly functionName: string;
@@ -69,41 +65,13 @@ export interface BatchResult {
   request: BatchRequestItem;
 }
 
-export function buildCallRequest(
-  objectPath: string,
-  functionName: string,
-  parameters?: Record<string, unknown>,
-  options?: BuildCallRequestOptions
-): ObjectCallRequest;
-export function buildCallRequest(args: BuildCallArgs): ObjectCallRequest;
-export function buildCallRequest(
-  objectPathOrArgs: string | BuildCallArgs,
-  functionName?: string,
-  parameters?: Record<string, unknown>,
-  options?: BuildCallRequestOptions
-): ObjectCallRequest {
-  let op: string;
-  let fn: string;
-  let params: Record<string, unknown> | undefined;
-  let opts: BuildCallRequestOptions | undefined;
-
-  if (typeof objectPathOrArgs === "string") {
-    op = objectPathOrArgs;
-    fn = functionName!;
-    params = parameters;
-    opts = options;
-  } else {
-    op = objectPathOrArgs.objectPath;
-    fn = objectPathOrArgs.functionName;
-    params = objectPathOrArgs.parameters;
-    opts = objectPathOrArgs.transaction !== undefined ? { transaction: objectPathOrArgs.transaction } : undefined;
-  }
-
+export function buildCallRequest(args: BuildCallArgs): ObjectCallRequest {
+  const { objectPath, functionName, parameters, transaction } = args;
   return Schema.encodeSync(ObjectCallRequestSchema)({
-    objectPath: op,
-    functionName: fn,
-    ...(params ? { parameters: params } : {}),
-    ...(opts?.transaction ? { generateTransaction: true } : {})
+    objectPath,
+    functionName,
+    ...(parameters !== undefined ? { parameters } : {}),
+    ...(transaction !== undefined ? { generateTransaction: true } : {})
   }) as ObjectCallRequest;
 }
 
@@ -144,104 +112,31 @@ export const buildBatchRequest = (
 export class BatchBuilder {
   private readonly requests: BatchRequestItem[] = [];
 
-  call(objectPath: string, functionName: string, parameters?: Record<string, unknown>, options?: BuildCallRequestOptions): number;
-  call(args: BuildCallArgs): number;
-  call(
-    objectPathOrArgs: string | BuildCallArgs,
-    functionName?: string,
-    parameters?: Record<string, unknown>,
-    options?: BuildCallRequestOptions
-  ): number {
-    let op: string;
-    let fn: string;
-    let params: Record<string, unknown> | undefined;
-    let opts: BuildCallRequestOptions | undefined;
-
-    if (typeof objectPathOrArgs === "string") {
-      op = objectPathOrArgs;
-      fn = functionName!;
-      params = parameters;
-      opts = options;
-    } else {
-      op = objectPathOrArgs.objectPath;
-      fn = objectPathOrArgs.functionName;
-      params = objectPathOrArgs.parameters;
-      opts = objectPathOrArgs.transaction !== undefined ? { transaction: objectPathOrArgs.transaction } : undefined;
-    }
-
-    return this.add("PUT", "/remote/object/call", buildCallRequest(op, fn, params, opts));
+  call(args: BuildCallArgs): number {
+    return this.add("PUT", "/remote/object/call", buildCallRequest(args));
   }
 
-  getProperty(objectPath: string, propertyName: string, access?: AccessMode): number;
-  getProperty(args: BuildGetPropertyArgs): number;
-  getProperty(
-    objectPathOrArgs: string | BuildGetPropertyArgs,
-    propertyName?: string,
-    access: AccessMode = "READ_ACCESS"
-  ): number {
-    let op: string;
-    let pn: string;
-    let acc: AccessMode;
-
-    if (typeof objectPathOrArgs === "string") {
-      op = objectPathOrArgs;
-      pn = propertyName!;
-      acc = access;
-      Schema.encodeSync(AccessModeSchema)(acc);
-    } else {
-      op = objectPathOrArgs.objectPath;
-      pn = objectPathOrArgs.propertyName;
-      acc = objectPathOrArgs.access ?? "READ_ACCESS";
-    }
-
+  getProperty(args: BuildGetPropertyArgs): number {
+    const { objectPath, propertyName, access } = args;
+    const acc = access ?? "READ_ACCESS";
+    Schema.encodeSync(AccessModeSchema)(acc);
     return this.add(
       "PUT",
       "/remote/object/property",
-      buildPropertyRequest(op, { propertyName: pn, access: acc })
+      buildPropertyRequest(objectPath, { propertyName, access: acc })
     );
   }
 
-  setProperty(
-    objectPath: string,
-    propertyName: string,
-    propertyValue: unknown,
-    options?: { access?: Exclude<AccessMode, "READ_ACCESS">; transaction?: boolean }
-  ): number;
-  setProperty(args: BuildSetPropertyArgs): number;
-  setProperty(
-    objectPathOrArgs: string | BuildSetPropertyArgs,
-    propertyName?: string,
-    propertyValue?: unknown,
-    options?: { access?: Exclude<AccessMode, "READ_ACCESS">; transaction?: boolean }
-  ): number {
-    let op: string;
-    let pn: string;
-    let pv: unknown;
-    let opts: { access?: Exclude<AccessMode, "READ_ACCESS">; transaction?: boolean } | undefined;
-
-    if (typeof objectPathOrArgs === "string") {
-      op = objectPathOrArgs;
-      pn = propertyName!;
-      pv = propertyValue;
-      opts = options;
-    } else {
-      op = objectPathOrArgs.objectPath;
-      pn = objectPathOrArgs.propertyName;
-      pv = objectPathOrArgs.propertyValue;
-      opts = {
-        ...(objectPathOrArgs.access !== undefined ? { access: objectPathOrArgs.access } : {}),
-        ...(objectPathOrArgs.transaction !== undefined ? { transaction: objectPathOrArgs.transaction } : {})
-      };
-    }
-
+  setProperty(args: BuildSetPropertyArgs): number {
+    const { objectPath, propertyName, propertyValue, access, transaction } = args;
     return this.add(
       "PUT",
       "/remote/object/property",
-      buildPropertyRequest(op, {
-        propertyName: pn,
-        propertyValue: pv,
-        ...(opts?.access !== undefined ? { access: opts.access } : {}),
-        ...(opts?.transaction !== undefined ? { transaction: opts.transaction } : {})
+      buildPropertyRequest(objectPath, {
+        propertyName,
+        propertyValue,
+        ...(access !== undefined ? { access } : {}),
+        ...(transaction !== undefined ? { transaction } : {})
       })
     );
   }
@@ -250,27 +145,11 @@ export class BatchBuilder {
     return this.add("PUT", "/remote/object/describe", buildDescribeRequest(objectPath));
   }
 
-  searchAssets(query: string, options?: Omit<SearchAssetsRequest, "query">): number;
-  searchAssets(args: BuildSearchAssetsArgs): number;
-  searchAssets(
-    queryOrArgs: string | BuildSearchAssetsArgs,
-    options?: Omit<SearchAssetsRequest, "query">
-  ): number {
-    let q: string;
-    let opts: Omit<SearchAssetsRequest, "query"> | undefined;
-
-    if (typeof queryOrArgs === "string") {
-      q = queryOrArgs;
-      opts = options;
-    } else {
-      q = queryOrArgs.query;
-      const { query: _q, ...rest } = queryOrArgs;
-      opts = rest;
-    }
-
+  searchAssets(args: BuildSearchAssetsArgs): number {
+    const { query, ...rest } = args;
     const body = Schema.encodeSync(SearchAssetsRequestSchema)({
-      query: q,
-      ...(opts ?? {})
+      query,
+      ...rest
     });
     return this.add("PUT", "/remote/search/assets", body);
   }

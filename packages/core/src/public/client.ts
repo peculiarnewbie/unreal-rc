@@ -11,9 +11,7 @@ import {
   buildPropertyRequest,
   buildBatchRequest,
   correlateBatchResponses,
-  type BatchResult,
-  type BuildCallRequestOptions,
-  type BuildPropertyRequestOptions
+  type BatchResult
 } from "../internal/batch.js";
 import {
   ObjectCallResponseSchema,
@@ -43,11 +41,11 @@ import type {
   ObjectThumbnailResponse,
   PendingRequestInfo,
   PingResult,
-  SearchAssetsRequest,
   SearchAssetsResponse,
   InfoResponse,
   TransportRequestId
 } from "./types.js";
+import type { TransportResponse } from "../internal/transport.js";
 import type { ManagedRuntime } from "effect";
 import type {
   PayloadRedactionContext,
@@ -101,32 +99,15 @@ interface RequestOptionsBase {
   retry?: RetryOptions | undefined;
 }
 
-export interface CallOptions extends RequestOptionsBase {
-  transaction?: boolean;
-}
-
-export interface GetPropertyOptions extends RequestOptionsBase {
-  access?: AccessMode;
-}
+export type { RequestOptionsBase };
 
 export type WritableAccessMode = Exclude<AccessMode, "READ_ACCESS">;
-
-export interface SetPropertyOptions extends RequestOptionsBase {
-  access?: WritableAccessMode;
-  transaction?: boolean;
-}
-
-export interface DescribeOptions extends RequestOptionsBase {}
-
-export type SearchAssetsOptions = Omit<SearchAssetsRequest, "query"> & RequestOptionsBase;
 
 export interface BatchOptions extends RequestOptionsBase {}
 
 export interface EventOptions extends RequestOptionsBase {}
 
-export interface ThumbnailOptions extends RequestOptionsBase {}
-
-// ── Object-argument overload types ─────────────────────────────────────
+// ── Request argument types ────────────────────────────────────────────
 
 export interface CallArgs {
   readonly objectPath: string;
@@ -185,6 +166,37 @@ export interface ThumbnailArgs {
   readonly retry?: RetryOptions | undefined;
 }
 
+// ── Generic request argument types ────────────────────────────────────
+
+export interface RequestArgs<T = unknown> {
+  readonly verb: HttpVerb;
+  readonly url: string;
+  readonly body?: unknown;
+  readonly responseSchema?: Schema.Schema<T> | undefined;
+  readonly timeoutMs?: number | undefined;
+  readonly retry?: RetryOptions | undefined;
+}
+
+export interface RequestRawArgs {
+  readonly verb: HttpVerb;
+  readonly url: string;
+  readonly body?: unknown;
+  readonly timeoutMs?: number | undefined;
+  readonly retry?: RetryOptions | undefined;
+}
+
+// ── callReturn argument types ─────────────────────────────────────────
+
+export interface CallReturnArgs<T> {
+  readonly objectPath: string;
+  readonly functionName: string;
+  readonly parameters?: Record<string, unknown> | undefined;
+  readonly transaction?: boolean | undefined;
+  readonly returnSchema: Schema.Schema<T>;
+  readonly timeoutMs?: number | undefined;
+  readonly retry?: RetryOptions | undefined;
+}
+
 // ── Health detection option types ─────────────────────────────────────
 
 export interface PingOptions {
@@ -231,216 +243,293 @@ export class UnrealRC {
     this._redactPayload = options.redactPayload;
   }
 
-  private async callImpl(
-    objectPath: string,
-    functionName: string,
-    parameters?: Record<string, unknown>,
-    options?: CallOptions
-  ): Promise<ObjectCallResponse> {
-    const body = buildCallRequest(objectPath, functionName, parameters, options);
-    const response = await this.send("PUT", "/remote/object/call", body, ObjectCallResponseSchema, options);
+  // ── Effect API ─────────────────────────────────────────────────────
+
+  get effect() {
+    const self = this;
+
+    return {
+      call(args: CallArgs): Effect.Effect<ObjectCallResponse, TransportError, Transport> {
+        const { objectPath, functionName, parameters, transaction, timeoutMs, retry } = args;
+        const body = buildCallRequest({
+          objectPath,
+          functionName,
+          ...(parameters !== undefined ? { parameters } : {}),
+          ...(transaction !== undefined ? { transaction } : {})
+        });
+        return self.sendEffect("PUT", "/remote/object/call", body, ObjectCallResponseSchema, {
+          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+          ...(retry !== undefined ? { retry } : {})
+        }).pipe(
+          Effect.map((result) => normalizeCallResponse(result.decoded))
+        ) as Effect.Effect<ObjectCallResponse, TransportError, Transport>;
+      },
+
+      getProperty<T = unknown>(args: GetPropertyArgs): Effect.Effect<T | undefined, TransportError, Transport> {
+        const { objectPath, propertyName, access, timeoutMs, retry } = args;
+        const body = buildPropertyRequest(objectPath, {
+          propertyName,
+          access: access ?? "READ_ACCESS"
+        });
+        return self.sendEffect("PUT", "/remote/object/property", body, ObjectPropertyResponseSchema, {
+          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+          ...(retry !== undefined ? { retry } : {})
+        }).pipe(
+          Effect.map((result) => {
+            const parsed = parseReturnValue<T>(result.decoded, propertyName) ?? parseReturnValue<T>(result.decoded);
+            return parsed;
+          })
+        ) as Effect.Effect<T | undefined, TransportError, Transport>;
+      },
+
+      getProperties<T = Record<string, unknown>>(args: GetPropertiesArgs): Effect.Effect<T, TransportError, Transport> {
+        const { objectPath, access, timeoutMs, retry } = args;
+        const body = buildPropertyRequest(objectPath, {
+          access: access ?? "READ_ACCESS"
+        });
+        return self.sendEffect("PUT", "/remote/object/property", body, ObjectPropertyResponseSchema, {
+          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+          ...(retry !== undefined ? { retry } : {})
+        }).pipe(
+          Effect.map((result) => {
+            const parsed = parseReturnValue<T>(result.decoded) ?? (result.decoded as T);
+            return parsed;
+          })
+        ) as Effect.Effect<T, TransportError, Transport>;
+      },
+
+      setProperty(args: SetPropertyArgs): Effect.Effect<ObjectPropertyResponse, TransportError, Transport> {
+        const { objectPath, propertyName, propertyValue, access, transaction, timeoutMs, retry } = args;
+        const body = buildPropertyRequest(objectPath, {
+          propertyName,
+          propertyValue,
+          ...(access !== undefined ? { access } : {}),
+          ...(transaction !== undefined ? { transaction } : {})
+        });
+        return self.sendEffect("PUT", "/remote/object/property", body, ObjectPropertyResponseSchema, {
+          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+          ...(retry !== undefined ? { retry } : {})
+        }).pipe(
+          Effect.map((result) => result.decoded ?? ({} as ObjectPropertyResponse))
+        ) as Effect.Effect<ObjectPropertyResponse, TransportError, Transport>;
+      },
+
+      describe(args: DescribeArgs): Effect.Effect<ObjectDescribeResponse, TransportError, Transport> {
+        const { objectPath, timeoutMs, retry } = args;
+        return self.sendEffect("PUT", "/remote/object/describe", buildDescribeRequest(objectPath), ObjectDescribeResponseSchema, {
+          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+          ...(retry !== undefined ? { retry } : {})
+        }).pipe(
+          Effect.map((result) => result.decoded)
+        ) as Effect.Effect<ObjectDescribeResponse, TransportError, Transport>;
+      },
+
+      searchAssets(args: SearchAssetsArgs): Effect.Effect<SearchAssetsResponse, TransportError, Transport> {
+        const { query, timeoutMs, retry, ...searchOptions } = args;
+        const body = Schema.encodeSync(SearchAssetsRequestSchema)({ query, ...searchOptions });
+        return self.sendEffect("PUT", "/remote/search/assets", body, SearchAssetsResponseSchema, {
+          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+          ...(retry !== undefined ? { retry } : {})
+        }).pipe(
+          Effect.map((result) => result.decoded)
+        ) as Effect.Effect<SearchAssetsResponse, TransportError, Transport>;
+      },
+
+      info(options?: RequestOptionsBase): Effect.Effect<InfoResponse, TransportError, Transport> {
+        return self.sendEffect("GET", "/remote/info", undefined, InfoResponseSchema, options).pipe(
+          Effect.map((result) => result.decoded)
+        ) as Effect.Effect<InfoResponse, TransportError, Transport>;
+      },
+
+      event(request: ObjectEventRequest, options?: EventOptions): Effect.Effect<ObjectEventResponse, TransportError, Transport> {
+        const body = Schema.encodeSync(ObjectEventRequestSchema)(request);
+        return self.sendEffect("PUT", "/remote/object/event", body, ObjectEventResponseSchema, options).pipe(
+          Effect.map((result) => result.decoded)
+        ) as Effect.Effect<ObjectEventResponse, TransportError, Transport>;
+      },
+
+      thumbnail(args: ThumbnailArgs): Effect.Effect<ObjectThumbnailResponse, TransportError, Transport> {
+        const { objectPath, timeoutMs, retry } = args;
+        const body = Schema.encodeSync(ObjectThumbnailRequestSchema)({ objectPath });
+        return self.sendEffect("PUT", "/remote/object/thumbnail", body, ObjectThumbnailResponseSchema, {
+          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+          ...(retry !== undefined ? { retry } : {})
+        }).pipe(
+          Effect.map((result) => result.decoded)
+        ) as Effect.Effect<ObjectThumbnailResponse, TransportError, Transport>;
+      },
+
+      batch(
+        configure: (builder: BatchBuilder) => void,
+        options?: BatchOptions
+      ): Effect.Effect<BatchResult[], TransportError, Transport> {
+        const builder = new BatchBuilder();
+        configure(builder);
+        const requests = builder.getRequests();
+        return self.sendEffect("PUT", "/remote/batch", buildBatchRequest(requests), BatchResponseSchema, options).pipe(
+          Effect.map((result) => correlateBatchResponses(requests, result.decoded))
+        ) as Effect.Effect<BatchResult[], TransportError, Transport>;
+      },
+
+      request<T = unknown>(args: RequestArgs<T>): Effect.Effect<T, TransportError, Transport> {
+        const { verb, url, body, responseSchema, timeoutMs, retry } = args;
+        if (responseSchema !== undefined) {
+          return self.sendEffect(verb, url, body, responseSchema, { timeoutMs, retry }).pipe(
+            Effect.map((result) => result.decoded)
+          ) as Effect.Effect<T, TransportError, Transport>;
+        }
+        return self.sendEffectRaw(verb, url, body, { timeoutMs, retry }).pipe(
+          Effect.map((result) => result.body)
+        ) as Effect.Effect<T, TransportError, Transport>;
+      },
+
+      requestRaw(args: RequestRawArgs): Effect.Effect<TransportResponse, TransportError, Transport> {
+        const { verb, url, body, timeoutMs, retry } = args;
+        return self.sendEffectRaw(verb, url, body, { timeoutMs, retry });
+      },
+
+      callReturn<T>(args: CallReturnArgs<T>): Effect.Effect<T, TransportError, Transport> {
+        const { objectPath, functionName, parameters, transaction, returnSchema, timeoutMs, retry } = args;
+        const body = buildCallRequest({
+          objectPath,
+          functionName,
+          ...(parameters !== undefined ? { parameters } : {}),
+          ...(transaction !== undefined ? { transaction } : {})
+        });
+        return self.sendEffect("PUT", "/remote/object/call", body, ObjectCallResponseSchema, { timeoutMs, retry }).pipe(
+          Effect.map((result) => normalizeCallResponse(result.decoded)),
+          Effect.flatMap((normalized) => {
+            if (normalized.ReturnValue === undefined) {
+              return Effect.fail(
+                new DecodeError({
+                  message: "callReturn: ReturnValue not present in response",
+                  verb: "PUT",
+                  url: "/remote/object/call"
+                })
+              ) as Effect.Effect<T, TransportError>;
+            }
+            return Schema.decodeUnknownEffect(returnSchema)(normalized.ReturnValue).pipe(
+              Effect.mapError(
+                (cause) =>
+                  new DecodeError({
+                    message: "callReturn: failed to decode ReturnValue",
+                    verb: "PUT",
+                    url: "/remote/object/call",
+                    details: normalized.ReturnValue,
+                    cause
+                  })
+              )
+            ) as Effect.Effect<T, TransportError>;
+          })
+        ) as Effect.Effect<T, TransportError, Transport>;
+      },
+
+      ping(options?: PingOptions): Effect.Effect<PingResult, never, Transport> {
+        const timeoutMs = options?.timeoutMs ?? 2000;
+        return Effect.suspend(() => {
+          const startTime = Date.now();
+          return (sendRequest({ verb: "GET", url: "/remote/info", body: undefined, timeoutMs }) as Effect.Effect<
+            { body: unknown; statusCode?: number | undefined; requestId?: number | string | undefined },
+            TransportError,
+            Transport
+          >).pipe(
+            Effect.map(() => ({ reachable: true, latencyMs: Date.now() - startTime } as PingResult)),
+            Effect.catchCause(() => Effect.succeed({ reachable: false, latencyMs: undefined } as PingResult))
+          ) as Effect.Effect<PingResult, never, Transport>;
+        }) as Effect.Effect<PingResult, never, Transport>;
+      },
+
+      pendingRequests(): Effect.Effect<readonly PendingRequestInfo[], never, Transport> {
+        return Transport.use((transport) => transport.pendingRequests);
+      },
+
+      dispose(): Effect.Effect<void, never, Transport> {
+        return Transport.use((transport) => transport.dispose);
+      }
+    };
+  }
+
+  // ── Promise API ─────────────────────────────────────────────────────
+
+  async call(args: CallArgs): Promise<ObjectCallResponse> {
+    const { objectPath, functionName, parameters, transaction, timeoutMs, retry } = args;
+    const body = buildCallRequest({
+      objectPath,
+      functionName,
+      ...(parameters !== undefined ? { parameters } : {}),
+      ...(transaction !== undefined ? { transaction } : {})
+    });
+    const response = await this.send("PUT", "/remote/object/call", body, ObjectCallResponseSchema, {
+      ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+      ...(retry !== undefined ? { retry } : {})
+    });
     return normalizeCallResponse(response);
   }
 
-  async call(
-    objectPath: string,
-    functionName: string,
-    parameters?: Record<string, unknown>,
-    options?: CallOptions
-  ): Promise<ObjectCallResponse>;
-  async call(args: CallArgs): Promise<ObjectCallResponse>;
-  async call(
-    objectPathOrArgs: string | CallArgs,
-    functionName?: string,
-    parameters?: Record<string, unknown>,
-    options?: CallOptions
-  ): Promise<ObjectCallResponse> {
-    if (typeof objectPathOrArgs === "string") {
-      return this.callImpl(objectPathOrArgs, functionName!, parameters, options);
-    }
-    return this.callImpl(
-      objectPathOrArgs.objectPath,
-      objectPathOrArgs.functionName,
-      objectPathOrArgs.parameters,
-      {
-        ...(objectPathOrArgs.transaction !== undefined ? { transaction: objectPathOrArgs.transaction } : {}),
-        ...(objectPathOrArgs.timeoutMs !== undefined ? { timeoutMs: objectPathOrArgs.timeoutMs } : {}),
-        ...(objectPathOrArgs.retry !== undefined ? { retry: objectPathOrArgs.retry } : {})
-      }
-    );
-  }
-
-  private async getPropertyImpl<T = unknown>(
-    objectPath: string,
-    propertyName: string,
-    options?: GetPropertyOptions
-  ): Promise<T | undefined> {
+  async getProperty<T = unknown>(args: GetPropertyArgs): Promise<T | undefined> {
+    const { objectPath, propertyName, access, timeoutMs, retry } = args;
     const body = buildPropertyRequest(objectPath, {
       propertyName,
-      access: options?.access ?? "READ_ACCESS"
+      access: access ?? "READ_ACCESS"
     });
     const response = await this.send(
       "PUT",
       "/remote/object/property",
       body,
       ObjectPropertyResponseSchema,
-      options
+      { ...(timeoutMs !== undefined ? { timeoutMs } : {}), ...(retry !== undefined ? { retry } : {}) }
     );
     return parseReturnValue<T>(response, propertyName) ?? parseReturnValue<T>(response);
   }
 
-  async getProperty<T = unknown>(
-    objectPath: string,
-    propertyName: string,
-    options?: GetPropertyOptions
-  ): Promise<T | undefined>;
-  async getProperty<T = unknown>(args: GetPropertyArgs): Promise<T | undefined>;
-  async getProperty<T = unknown>(
-    objectPathOrArgs: string | GetPropertyArgs,
-    propertyName?: string,
-    options?: GetPropertyOptions
-  ): Promise<T | undefined> {
-    if (typeof objectPathOrArgs === "string") {
-      return this.getPropertyImpl(objectPathOrArgs, propertyName!, options);
-    }
-    return this.getPropertyImpl(
-      objectPathOrArgs.objectPath,
-      objectPathOrArgs.propertyName,
-      {
-        ...(objectPathOrArgs.access !== undefined ? { access: objectPathOrArgs.access } : {}),
-        ...(objectPathOrArgs.timeoutMs !== undefined ? { timeoutMs: objectPathOrArgs.timeoutMs } : {}),
-        ...(objectPathOrArgs.retry !== undefined ? { retry: objectPathOrArgs.retry } : {})
-      }
-    );
-  }
-
-  private async getPropertiesImpl<T = Record<string, unknown>>(
-    objectPath: string,
-    options?: GetPropertyOptions
-  ): Promise<T> {
+  async getProperties<T = Record<string, unknown>>(args: GetPropertiesArgs): Promise<T> {
+    const { objectPath, access, timeoutMs, retry } = args;
     const body = buildPropertyRequest(objectPath, {
-      access: options?.access ?? "READ_ACCESS"
+      access: access ?? "READ_ACCESS"
     });
     const response = await this.send(
       "PUT",
       "/remote/object/property",
       body,
       ObjectPropertyResponseSchema,
-      options
+      { ...(timeoutMs !== undefined ? { timeoutMs } : {}), ...(retry !== undefined ? { retry } : {}) }
     );
     return parseReturnValue<T>(response) ?? (response as T);
   }
 
-  async getProperties<T = Record<string, unknown>>(
-    objectPath: string,
-    options?: GetPropertyOptions
-  ): Promise<T>;
-  async getProperties<T = Record<string, unknown>>(args: GetPropertiesArgs): Promise<T>;
-  async getProperties<T = Record<string, unknown>>(
-    objectPathOrArgs: string | GetPropertiesArgs,
-    options?: GetPropertyOptions
-  ): Promise<T> {
-    if (typeof objectPathOrArgs === "string") {
-      return this.getPropertiesImpl(objectPathOrArgs, options);
-    }
-    return this.getPropertiesImpl(objectPathOrArgs.objectPath, {
-      ...(objectPathOrArgs.access !== undefined ? { access: objectPathOrArgs.access } : {}),
-      ...(objectPathOrArgs.timeoutMs !== undefined ? { timeoutMs: objectPathOrArgs.timeoutMs } : {}),
-      ...(objectPathOrArgs.retry !== undefined ? { retry: objectPathOrArgs.retry } : {})
-    });
-  }
-
-  private async setPropertyImpl(
-    objectPath: string,
-    propertyName: string,
-    propertyValue: unknown,
-    options?: SetPropertyOptions
-  ): Promise<ObjectPropertyResponse> {
+  async setProperty(args: SetPropertyArgs): Promise<ObjectPropertyResponse> {
+    const { objectPath, propertyName, propertyValue, access, transaction, timeoutMs, retry } = args;
     const body = buildPropertyRequest(objectPath, {
       propertyName,
       propertyValue,
-      ...(options?.access !== undefined ? { access: options.access } : {}),
-      ...(options?.transaction !== undefined ? { transaction: options.transaction } : {})
+      ...(access !== undefined ? { access } : {}),
+      ...(transaction !== undefined ? { transaction } : {})
     });
     const response = await this.send(
       "PUT",
       "/remote/object/property",
       body,
       ObjectPropertyResponseSchema,
-      options
+      { ...(timeoutMs !== undefined ? { timeoutMs } : {}), ...(retry !== undefined ? { retry } : {}) }
     );
     return response ?? ({} as ObjectPropertyResponse);
   }
 
-  async setProperty(
-    objectPath: string,
-    propertyName: string,
-    propertyValue: unknown,
-    options?: SetPropertyOptions
-  ): Promise<ObjectPropertyResponse>;
-  async setProperty(args: SetPropertyArgs): Promise<ObjectPropertyResponse>;
-  async setProperty(
-    objectPathOrArgs: string | SetPropertyArgs,
-    propertyName?: string,
-    propertyValue?: unknown,
-    options?: SetPropertyOptions
-  ): Promise<ObjectPropertyResponse> {
-    if (typeof objectPathOrArgs === "string") {
-      return this.setPropertyImpl(objectPathOrArgs, propertyName!, propertyValue, options);
-    }
-    return this.setPropertyImpl(
-      objectPathOrArgs.objectPath,
-      objectPathOrArgs.propertyName,
-      objectPathOrArgs.propertyValue,
-      {
-        ...(objectPathOrArgs.access !== undefined ? { access: objectPathOrArgs.access } : {}),
-        ...(objectPathOrArgs.transaction !== undefined ? { transaction: objectPathOrArgs.transaction } : {}),
-        ...(objectPathOrArgs.timeoutMs !== undefined ? { timeoutMs: objectPathOrArgs.timeoutMs } : {}),
-        ...(objectPathOrArgs.retry !== undefined ? { retry: objectPathOrArgs.retry } : {})
-      }
+  async describe(args: DescribeArgs): Promise<ObjectDescribeResponse> {
+    const { objectPath, timeoutMs, retry } = args;
+    return this.send(
+      "PUT",
+      "/remote/object/describe",
+      buildDescribeRequest(objectPath),
+      ObjectDescribeResponseSchema,
+      { ...(timeoutMs !== undefined ? { timeoutMs } : {}), ...(retry !== undefined ? { retry } : {}) }
     );
   }
 
-  private async describeImpl(objectPath: string, options?: DescribeOptions): Promise<ObjectDescribeResponse> {
-    return this.send("PUT", "/remote/object/describe", buildDescribeRequest(objectPath), ObjectDescribeResponseSchema, options);
-  }
-
-  async describe(objectPath: string, options?: DescribeOptions): Promise<ObjectDescribeResponse>;
-  async describe(args: DescribeArgs): Promise<ObjectDescribeResponse>;
-  async describe(
-    objectPathOrArgs: string | DescribeArgs,
-    options?: DescribeOptions
-  ): Promise<ObjectDescribeResponse> {
-    if (typeof objectPathOrArgs === "string") {
-      return this.describeImpl(objectPathOrArgs, options);
-    }
-    return this.describeImpl(objectPathOrArgs.objectPath, {
-      timeoutMs: objectPathOrArgs.timeoutMs,
-      retry: objectPathOrArgs.retry
-    });
-  }
-
-  private async searchAssetsImpl(query: string, options?: SearchAssetsOptions): Promise<SearchAssetsResponse> {
-    const { timeoutMs, retry, ...searchOptions } = options ?? {};
+  async searchAssets(args: SearchAssetsArgs): Promise<SearchAssetsResponse> {
+    const { query, timeoutMs, retry, ...searchOptions } = args;
     const body = Schema.encodeSync(SearchAssetsRequestSchema)({ query, ...searchOptions });
     return this.send("PUT", "/remote/search/assets", body, SearchAssetsResponseSchema, {
-      ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-      ...(retry !== undefined ? { retry } : {})
-    });
-  }
-
-  async searchAssets(query: string, options?: SearchAssetsOptions): Promise<SearchAssetsResponse>;
-  async searchAssets(args: SearchAssetsArgs): Promise<SearchAssetsResponse>;
-  async searchAssets(
-    queryOrArgs: string | SearchAssetsArgs,
-    options?: SearchAssetsOptions
-  ): Promise<SearchAssetsResponse> {
-    if (typeof queryOrArgs === "string") {
-      return this.searchAssetsImpl(queryOrArgs, options);
-    }
-    const { query, timeoutMs, retry, ...searchOptions } = queryOrArgs;
-    return this.searchAssetsImpl(query, {
-      ...searchOptions,
       ...(timeoutMs !== undefined ? { timeoutMs } : {}),
       ...(retry !== undefined ? { retry } : {})
     });
@@ -455,23 +544,12 @@ export class UnrealRC {
     return this.send("PUT", "/remote/object/event", body, ObjectEventResponseSchema, options);
   }
 
-  private async thumbnailImpl(objectPath: string, options?: ThumbnailOptions): Promise<ObjectThumbnailResponse> {
+  async thumbnail(args: ThumbnailArgs): Promise<ObjectThumbnailResponse> {
+    const { objectPath, timeoutMs, retry } = args;
     const body = Schema.encodeSync(ObjectThumbnailRequestSchema)({ objectPath });
-    return this.send("PUT", "/remote/object/thumbnail", body, ObjectThumbnailResponseSchema, options);
-  }
-
-  async thumbnail(objectPath: string, options?: ThumbnailOptions): Promise<ObjectThumbnailResponse>;
-  async thumbnail(args: ThumbnailArgs): Promise<ObjectThumbnailResponse>;
-  async thumbnail(
-    objectPathOrArgs: string | ThumbnailArgs,
-    options?: ThumbnailOptions
-  ): Promise<ObjectThumbnailResponse> {
-    if (typeof objectPathOrArgs === "string") {
-      return this.thumbnailImpl(objectPathOrArgs, options);
-    }
-    return this.thumbnailImpl(objectPathOrArgs.objectPath, {
-      timeoutMs: objectPathOrArgs.timeoutMs,
-      retry: objectPathOrArgs.retry
+    return this.send("PUT", "/remote/object/thumbnail", body, ObjectThumbnailResponseSchema, {
+      ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+      ...(retry !== undefined ? { retry } : {})
     });
   }
 
@@ -581,6 +659,59 @@ export class UnrealRC {
     );
   }
 
+  // ── Generic requests ───────────────────────────────────────────────
+
+  async request<T = unknown>(args: RequestArgs<T>): Promise<T> {
+    const { verb, url, body, responseSchema, timeoutMs, retry } = args;
+    if (responseSchema !== undefined) {
+      return this.send(verb as string, url, body, responseSchema, { timeoutMs, retry });
+    }
+    const raw = await this.sendRawResponse(verb as string, url, body, { timeoutMs, retry });
+    return raw.body as T;
+  }
+
+  async requestRaw(args: RequestRawArgs): Promise<TransportResponse> {
+    const { verb, url, body, timeoutMs, retry } = args;
+    return this.sendRawResponse(verb as string, url, body, { timeoutMs, retry });
+  }
+
+  // ── callReturn ─────────────────────────────────────────────────────
+
+  async callReturn<T>(args: CallReturnArgs<T>): Promise<T> {
+    const { objectPath, functionName, parameters, transaction, returnSchema, timeoutMs, retry } = args;
+    const body = buildCallRequest({
+      objectPath,
+      functionName,
+      ...(parameters !== undefined ? { parameters } : {}),
+      ...(transaction !== undefined ? { transaction } : {})
+    });
+    const response = await this.send("PUT", "/remote/object/call", body, ObjectCallResponseSchema, { timeoutMs, retry });
+    const normalized = normalizeCallResponse(response);
+
+    if (normalized.ReturnValue === undefined) {
+      throw new TransportRequestError("callReturn: ReturnValue not present in response", {
+        kind: "decode",
+        verb: "PUT",
+        url: "/remote/object/call"
+      });
+    }
+
+    // Schema.decodeUnknownSync has strict Decoder<unknown, never> typing in
+    // effect v4 beta; wrap decode and rethrow as TransportRequestError.
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (Schema.decodeUnknownSync as any)(returnSchema)(normalized.ReturnValue) as T;
+    } catch (cause) {
+      throw new TransportRequestError("callReturn: failed to decode ReturnValue", {
+        kind: "decode",
+        verb: "PUT",
+        url: "/remote/object/call",
+        details: normalized.ReturnValue,
+        cause
+      });
+    }
+  }
+
   // ── Lifecycle ───────────────────────────────────────────────────────
 
   async dispose(): Promise<void> {
@@ -591,6 +722,62 @@ export class UnrealRC {
   }
 
   // ── Internal ─────────────────────────────────────────────────────────
+
+  private sendEffect<T>(
+    verb: string,
+    url: string,
+    body: unknown,
+    responseSchema: Schema.Schema<T>,
+    options?: RequestOptionsBase
+  ): Effect.Effect<SendResult<T>, TransportError, Transport> {
+    const retryConfig = this.resolveRetryConfig(options?.retry, verb as HttpVerb, url);
+    const validateResponses = this.validateResponses;
+
+    const pipeline = sendRequest({
+      verb,
+      url,
+      body,
+      timeoutMs: options?.timeoutMs
+    }).pipe(
+      Effect.flatMap((response) => {
+        if (!validateResponses) {
+          return Effect.succeed({
+            decoded: response.body as T,
+            statusCode: response.statusCode,
+            requestId: response.requestId,
+            rawBody: response.body
+          } as SendResult<T>);
+        }
+        const decodeInput = response.body ?? {};
+        return Schema.decodeUnknownEffect(responseSchema)(
+          decodeInput,
+          { onExcessProperty: "preserve" }
+        ).pipe(
+          Effect.map((decoded) => ({
+            decoded,
+            statusCode: response.statusCode,
+            requestId: response.requestId,
+            rawBody: response.body
+          } as SendResult<T>)),
+          Effect.mapError(
+            (parseError) =>
+              new DecodeError({
+                message: "Failed to decode response payload",
+                verb,
+                url,
+                details: response.body,
+                cause: parseError
+              })
+          )
+        );
+      })
+    ) as Effect.Effect<SendResult<T>, TransportError, Transport>;
+
+    if (retryConfig === false) {
+      return pipeline;
+    }
+    return withRetry(pipeline, retryConfig);
+  }
 
   private async sendRaw(
     verb: string,
@@ -610,64 +797,15 @@ export class UnrealRC {
     responseSchema: Schema.Schema<T>,
     options?: RequestOptionsBase
   ): Promise<T> {
-    const retryConfig = this.resolveRetryConfig(options?.retry, verb as HttpVerb, url);
-    const validateResponses = this.validateResponses;
     const startTime = Date.now();
-
-    // Fire request hook
     this.fireRequestHook(verb as HttpVerb, url, body);
 
-    type SendResult = { decoded: T; statusCode?: number; requestId?: number | string; rawBody: unknown };
-
-    const effect = sendRequest({
-      verb,
-      url,
-      body,
-      timeoutMs: options?.timeoutMs
-    }).pipe(
-      Effect.flatMap((response) => {
-        if (!validateResponses) {
-          return Effect.succeed({
-            decoded: response.body as T,
-            statusCode: response.statusCode,
-            requestId: response.requestId,
-            rawBody: response.body
-          } as SendResult);
-        }
-        const decodeInput = response.body ?? {};
-        return Schema.decodeUnknownEffect(responseSchema)(
-          decodeInput,
-          { onExcessProperty: "preserve" }
-        ).pipe(
-          Effect.map(
-            (decoded) =>
-              ({
-                decoded,
-                statusCode: response.statusCode,
-                requestId: response.requestId,
-                rawBody: response.body
-              }) as SendResult
-          ),
-          Effect.mapError(
-            (parseError) =>
-              new DecodeError({
-                message: "Failed to decode response payload",
-                verb,
-                url,
-                details: response.body,
-                cause: parseError
-              }) as TransportError
-          )
-        );
-      }),
-      (e) => (retryConfig === false ? e : withRetry(e, retryConfig)),
+    const effect = this.sendEffect(verb, url, body, responseSchema, options).pipe(
       Effect.mapError(toPublicError)
     );
 
     try {
-      const result = await this.runtime.runPromise(
-        effect as Effect.Effect<SendResult, TransportRequestError>
-      );
+      const result = await this.runtime.runPromise(effect);
       this.fireResponseHook(verb as HttpVerb, url, body, result, startTime);
       return result.decoded;
     } catch (error) {
@@ -697,7 +835,7 @@ export class UnrealRC {
     verb: HttpVerb,
     url: string,
     requestBody: unknown,
-    result: { statusCode?: number; requestId?: number | string; rawBody: unknown },
+    result: { statusCode?: number | undefined; requestId?: number | string | undefined; rawBody: unknown },
     startTime: number
   ): void {
     if (!this._onResponse) return;
@@ -813,6 +951,61 @@ export class UnrealRC {
 
     return { maxAttempts, baseDelayMs, ...(shouldRetry ? { shouldRetry } : {}) };
   }
+
+  // ── Raw response transport (hooks + no decode) ──────────────────────
+
+  private async sendRawResponse(
+    verb: string,
+    url: string,
+    body: unknown,
+    options?: RequestOptionsBase
+  ): Promise<TransportResponse> {
+    const startTime = Date.now();
+    this.fireRequestHook(verb as HttpVerb, url, body);
+
+    const effect = this.sendEffectRaw(verb, url, body, options).pipe(
+      Effect.mapError(toPublicError)
+    ) as Effect.Effect<TransportResponse, TransportRequestError, never>;
+
+    try {
+      const result = await this.runtime.runPromise(effect);
+      this.fireResponseHook(verb as HttpVerb, url, body, {
+        statusCode: result.statusCode,
+        requestId: result.requestId,
+        rawBody: result.body
+      }, startTime);
+      return result;
+    } catch (error) {
+      this.fireErrorHook(verb as HttpVerb, url, body, error, startTime);
+      throw error;
+    }
+  }
+
+  // ── Effect-level raw pipeline (no decode, with retry) ──────────────
+
+  private sendEffectRaw(
+    verb: string,
+    url: string,
+    body: unknown,
+    options?: RequestOptionsBase
+  ): Effect.Effect<TransportResponse, TransportError, Transport> {
+    const retryConfig = this.resolveRetryConfig(options?.retry, verb as HttpVerb, url);
+    const pipeline = sendRequest({ verb, url, body, timeoutMs: options?.timeoutMs });
+
+    if (retryConfig === false) {
+      return pipeline;
+    }
+    return withRetry(pipeline, retryConfig);
+  }
+}
+
+// ── Types ──────────────────────────────────────────────────────────────
+
+interface SendResult<T> {
+  decoded: T;
+  statusCode: number | undefined;
+  requestId: number | string | undefined;
+  rawBody: unknown;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────

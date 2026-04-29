@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { GetPropertyOptions, SetPropertyOptions } from "../../src/index.js";
+import type { GetPropertyArgs, SetPropertyArgs } from "../../src/index.js";
 import {
   acquireFixture,
   releaseFixture,
@@ -33,64 +33,61 @@ crossTransportTest(
       currentStep = "wait for Remote Control WebSocket";
       await waitForRemoteControlWs(handle, launchOptions);
 
-      const propOptions: GetPropertyOptions = requestOptions;
-      const setOptions: SetPropertyOptions = requestOptions;
-
       // Reset to baseline
       currentStep = "reset Counter to baseline via HTTP";
-      await setCounter(clients.http, contract, contract.baselineValue, setOptions);
+      await setCounter(clients.http, contract, contract.baselineValue, requestOptions);
 
       // Test 1: Write via HTTP → read via WS
       const httpWriteValue = 111;
       currentStep = `set Counter=${httpWriteValue} via HTTP`;
-      await setCounter(clients.http, contract, httpWriteValue, setOptions);
+      await setCounter(clients.http, contract, httpWriteValue, requestOptions);
 
       currentStep = `read Counter via WS, expect ${httpWriteValue}`;
-      expect(await getCounter(clients.ws, contract, propOptions)).toBe(httpWriteValue);
+      expect(await getCounter(clients.ws, contract, requestOptions)).toBe(httpWriteValue);
 
       // Test 2: Write via WS → read via HTTP
       const wsWriteValue = 222;
       currentStep = `set Counter=${wsWriteValue} via WS`;
-      await setCounter(clients.ws, contract, wsWriteValue, setOptions);
+      await setCounter(clients.ws, contract, wsWriteValue, requestOptions);
 
       currentStep = `read Counter via HTTP, expect ${wsWriteValue}`;
-      expect(await getCounter(clients.http, contract, propOptions)).toBe(wsWriteValue);
+      expect(await getCounter(clients.http, contract, requestOptions)).toBe(wsWriteValue);
 
       // Test 3: Call via HTTP → verify via WS
       currentStep = "reset Counter to baseline via HTTP";
-      await setCounter(clients.http, contract, contract.baselineValue, setOptions);
+      await setCounter(clients.http, contract, contract.baselineValue, requestOptions);
 
       currentStep = `call ${contract.functionName}(${contract.httpCallDelta}) via HTTP`;
-      const httpCallResult = await clients.http.call(
-        contract.objectPath,
-        contract.functionName,
-        { [contract.functionArgumentName]: contract.httpCallDelta },
-        requestOptions
-      );
+      const httpCallResult = await clients.http.call({
+        objectPath: contract.objectPath,
+        functionName: contract.functionName,
+        parameters: { [contract.functionArgumentName]: contract.httpCallDelta },
+        ...requestOptions
+      });
 
       const expectedAfterHttpCall = contract.baselineValue + contract.httpCallDelta;
       expect(httpCallResult.ReturnValue).toBe(expectedAfterHttpCall);
 
       currentStep = `read Counter via WS, expect ${expectedAfterHttpCall}`;
-      expect(await getCounter(clients.ws, contract, propOptions)).toBe(expectedAfterHttpCall);
+      expect(await getCounter(clients.ws, contract, requestOptions)).toBe(expectedAfterHttpCall);
 
       // Test 4: Call via WS → verify via HTTP
       currentStep = "reset Counter to baseline via HTTP";
-      await setCounter(clients.http, contract, contract.baselineValue, setOptions);
+      await setCounter(clients.http, contract, contract.baselineValue, requestOptions);
 
       currentStep = `call ${contract.functionName}(${contract.wsCallDelta}) via WS`;
-      const wsCallResult = await clients.ws.call(
-        contract.objectPath,
-        contract.functionName,
-        { [contract.functionArgumentName]: contract.wsCallDelta },
-        requestOptions
-      );
+      const wsCallResult = await clients.ws.call({
+        objectPath: contract.objectPath,
+        functionName: contract.functionName,
+        parameters: { [contract.functionArgumentName]: contract.wsCallDelta },
+        ...requestOptions
+      });
 
       const expectedAfterWsCall = contract.baselineValue + contract.wsCallDelta;
       expect(wsCallResult.ReturnValue).toBe(expectedAfterWsCall);
 
       currentStep = `read Counter via HTTP, expect ${expectedAfterWsCall}`;
-      expect(await getCounter(clients.http, contract, propOptions)).toBe(expectedAfterWsCall);
+      expect(await getCounter(clients.http, contract, requestOptions)).toBe(expectedAfterWsCall);
     } catch (error) {
       throw new Error(
         formatE2eFailure({
@@ -127,20 +124,29 @@ interface ContractRef {
 }
 
 const getCounter = async (
-  client: { getProperty<T>(objectPath: string, propertyName: string, options?: GetPropertyOptions): Promise<T | undefined> },
+  client: { getProperty<T>(args: GetPropertyArgs): Promise<T | undefined> },
   contract: ContractRef,
-  options: GetPropertyOptions
+  options: { timeoutMs?: number; retry?: unknown }
 ): Promise<number> => {
-  const value = await client.getProperty<number>(contract.objectPath, contract.propertyName, options);
+  const value = await client.getProperty<number>({
+    objectPath: contract.objectPath,
+    propertyName: contract.propertyName,
+    ...options
+  });
   expect(typeof value).toBe("number");
   return value as number;
 };
 
 const setCounter = async (
-  client: { setProperty(objectPath: string, propertyName: string, propertyValue: unknown, options?: SetPropertyOptions): Promise<unknown> },
+  client: { setProperty(args: SetPropertyArgs): Promise<unknown> },
   contract: ContractRef,
   value: number,
-  options: SetPropertyOptions
+  options: { timeoutMs?: number; retry?: unknown }
 ): Promise<void> => {
-  await client.setProperty(contract.objectPath, contract.propertyName, value, options);
+  await client.setProperty({
+    objectPath: contract.objectPath,
+    propertyName: contract.propertyName,
+    propertyValue: value,
+    ...options
+  });
 };

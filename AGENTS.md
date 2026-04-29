@@ -47,7 +47,7 @@ Minimum validation:
 - Thread public timeout options (`timeoutMs`) through transport calls.
 - Preserve cause chains via `{ cause }` when rethrowing transport-level failures.
 - Use `TransportRequestError` for public transport-level failures.
-- For public API hardening, prefer additive object-argument overloads before replacing positional signatures.
+- Prefer object-argument signatures over positional. Positional overloads are being phased out.
 - Avoid ambiguous positional domain strings in new internal APIs; prefer object parameters or narrowed/branded types for `objectPath`, `functionName`, `propertyName`, URLs, and request IDs.
 - Treat branded public types and discriminated replacements for existing boolean state shapes as breaking unless introduced additively.
 

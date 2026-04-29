@@ -37,7 +37,7 @@ errorPathTest(
       // Test 1: describe a nonexistent object path
       currentStep = "describe nonexistent object path";
       try {
-        await clients.http.describe(bogusObjectPath, requestOptions);
+        await clients.http.describe({ objectPath: bogusObjectPath, ...requestOptions });
         // If Unreal returns 200 with empty/error body instead of a status error,
         // that's still valid — the test just confirms no crash.
       } catch (error) {
@@ -50,12 +50,11 @@ errorPathTest(
       // Test 2: call a nonexistent function on the real fixture actor
       currentStep = "call nonexistent function on fixture actor";
       try {
-        await clients.http.call(
-          contract.objectPath,
-          bogusFunction,
-          {},
-          requestOptions
-        );
+        await clients.http.call({
+          objectPath: contract.objectPath,
+          functionName: bogusFunction,
+          ...requestOptions
+        });
         // If Unreal returns 200, that's unexpected but not a test framework bug
         expect(true).toBe(true);
       } catch (error) {
@@ -68,12 +67,12 @@ errorPathTest(
       // Test 3: call on a completely nonexistent object path
       currentStep = "call on nonexistent object path";
       try {
-        await clients.http.call(
-          bogusObjectPath,
-          contract.functionName,
-          { [contract.functionArgumentName]: 1 },
-          requestOptions
-        );
+        await clients.http.call({
+          objectPath: bogusObjectPath,
+          functionName: contract.functionName,
+          parameters: { [contract.functionArgumentName]: 1 },
+          ...requestOptions
+        });
         expect(true).toBe(true);
       } catch (error) {
         expect(error).toBeInstanceOf(TransportRequestError);
@@ -86,11 +85,11 @@ errorPathTest(
       // Unreal RC may return undefined/null for missing properties instead of an error
       currentStep = "getProperty for nonexistent property";
       try {
-        const value = await clients.http.getProperty(
-          contract.objectPath,
-          bogusProperty,
-          requestOptions
-        );
+        const value = await clients.http.getProperty({
+          objectPath: contract.objectPath,
+          propertyName: bogusProperty,
+          ...requestOptions
+        });
         // If it returns without error, the value should be undefined/null
         expect(value === undefined || value === null).toBe(true);
       } catch (error) {
@@ -103,12 +102,11 @@ errorPathTest(
       // Test 5: verify that error paths over WebSocket also produce typed errors
       currentStep = "call nonexistent function over WebSocket";
       try {
-        await clients.ws.call(
-          contract.objectPath,
-          bogusFunction,
-          {},
-          requestOptions
-        );
+        await clients.ws.call({
+          objectPath: contract.objectPath,
+          functionName: bogusFunction,
+          ...requestOptions
+        });
         expect(true).toBe(true);
       } catch (error) {
         expect(error).toBeInstanceOf(TransportRequestError);
