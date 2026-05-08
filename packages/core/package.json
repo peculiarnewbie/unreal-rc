@@ -1,6 +1,6 @@
 {
   "name": "unreal-rc",
-  "version": "0.4.0",
+  "version": "0.5.1",
   "description": "Typed client for Unreal Engine Remote Control over WebSocket or HTTP",
   "license": "MIT",
   "repository": {
@@ -42,10 +42,10 @@
     "prepublishOnly": "bun run clean && bun run typecheck && bun run build"
   },
   "peerDependencies": {
-    "effect": ">=4.0.0-beta.37 <5"
+    "effect": ">=4.0.0-beta.50 <5"
   },
   "devDependencies": {
-    "effect": "4.0.0-beta.37"
+    "effect": "4.0.0-beta.59"
   },
   "publishConfig": {
     "access": "public"

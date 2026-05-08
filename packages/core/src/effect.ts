@@ -1,4 +1,4 @@
-import { Effect, Layer, ServiceMap } from "effect";
+import { Context, Effect, Layer } from "effect";
 import {
   UnrealRC,
   type CallArgs,
@@ -70,7 +70,7 @@ export interface UnrealRCEffectApi {
 // ── Service tag ───────────────────────────────────────────────────────
 
 /** @effect-expect-leaking Transport */
-export class UnrealRCService extends ServiceMap.Service<
+export class UnrealRCService extends Context.Service<
   UnrealRCService,
   UnrealRCEffectApi
 >()("UnrealRCService") {}

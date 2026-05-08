@@ -48,6 +48,9 @@ import type {
 import type { TransportResponse } from "../internal/transport.js";
 import type { ManagedRuntime } from "effect";
 import type {
+  EffectErrorHookContext,
+  EffectRequestHookContext,
+  EffectResponseHookContext,
   PayloadRedactionContext,
   RequestHookContext,
   ResponseHookContext,
@@ -57,6 +60,9 @@ import type {
 // ── Hook context types (re-exported from hooks) ────────────────────────
 
 export type {
+  EffectErrorHookContext,
+  EffectRequestHookContext,
+  EffectResponseHookContext,
   PayloadRedactionContext,
   RequestHookContext,
   ResponseHookContext,
@@ -91,6 +97,9 @@ export interface UnrealRCOptions extends RuntimeConfig {
   onRequest?: ((context: RequestHookContext) => void | Promise<void>) | undefined;
   onResponse?: ((context: ResponseHookContext) => void | Promise<void>) | undefined;
   onError?: ((context: ErrorHookContext) => void | Promise<void>) | undefined;
+  onRequestEffect?: ((context: EffectRequestHookContext) => Effect.Effect<void>) | undefined;
+  onResponseEffect?: ((context: EffectResponseHookContext) => Effect.Effect<void>) | undefined;
+  onErrorEffect?: ((context: EffectErrorHookContext) => Effect.Effect<void>) | undefined;
   redactPayload?: ((payload: unknown, context: PayloadRedactionContext) => unknown) | undefined;
 }
 
@@ -229,6 +238,9 @@ export class UnrealRC {
   private readonly _onRequest: ((ctx: RequestHookContext) => void | Promise<void>) | undefined;
   private readonly _onResponse: ((ctx: ResponseHookContext) => void | Promise<void>) | undefined;
   private readonly _onError: ((ctx: ErrorHookContext) => void | Promise<void>) | undefined;
+  private readonly _onRequestEffect: ((ctx: EffectRequestHookContext) => Effect.Effect<void>) | undefined;
+  private readonly _onResponseEffect: ((ctx: EffectResponseHookContext) => Effect.Effect<void>) | undefined;
+  private readonly _onErrorEffect: ((ctx: EffectErrorHookContext) => Effect.Effect<void>) | undefined;
   private readonly _redactPayload: ((payload: unknown, ctx: PayloadRedactionContext) => unknown) | undefined;
 
   constructor(options: UnrealRCOptions = {}) {
@@ -240,6 +252,9 @@ export class UnrealRC {
     this._onRequest = options.onRequest;
     this._onResponse = options.onResponse;
     this._onError = options.onError;
+    this._onRequestEffect = options.onRequestEffect;
+    this._onResponseEffect = options.onResponseEffect;
+    this._onErrorEffect = options.onErrorEffect;
     this._redactPayload = options.redactPayload;
   }
 
@@ -732,13 +747,18 @@ export class UnrealRC {
   ): Effect.Effect<SendResult<T>, TransportError, Transport> {
     const retryConfig = this.resolveRetryConfig(options?.retry, verb as HttpVerb, url);
     const validateResponses = this.validateResponses;
+    const transportName = this.transportName;
+    const onRequestEffect = this._onRequestEffect;
+    const onResponseEffect = this._onResponseEffect;
+    const onErrorEffect = this._onErrorEffect;
 
-    const pipeline = sendRequest({
+    const dispatchPipeline = sendRequest({
       verb,
       url,
       body,
       timeoutMs: options?.timeoutMs
     }).pipe(
+      Effect.annotateLogs({ transport: transportName, verb, url }),
       Effect.flatMap((response) => {
         if (!validateResponses) {
           return Effect.succeed({
@@ -746,7 +766,12 @@ export class UnrealRC {
             statusCode: response.statusCode,
             requestId: response.requestId,
             rawBody: response.body
-          } as SendResult<T>);
+          } as SendResult<T>).pipe(
+            Effect.annotateLogs({
+              statusCode: String(response.statusCode ?? ""),
+              requestId: String(response.requestId ?? "")
+            })
+          );
         }
         const decodeInput = response.body ?? {};
         return Schema.decodeUnknownEffect(responseSchema)(
@@ -759,6 +784,10 @@ export class UnrealRC {
             requestId: response.requestId,
             rawBody: response.body
           } as SendResult<T>)),
+          Effect.annotateLogs({
+            statusCode: String(response.statusCode ?? ""),
+            requestId: String(response.requestId ?? "")
+          }),
           Effect.mapError(
             (parseError) =>
               new DecodeError({
@@ -773,10 +802,64 @@ export class UnrealRC {
       })
     ) as Effect.Effect<SendResult<T>, TransportError, Transport>;
 
-    if (retryConfig === false) {
-      return pipeline;
+    const retriedPipeline = retryConfig === false
+      ? dispatchPipeline
+      : withRetry(dispatchPipeline, retryConfig);
+
+    // Wrap with Effect-native hooks (errors propagate intentionally)
+    if (!onRequestEffect && !onResponseEffect && !onErrorEffect) {
+      return retriedPipeline;
     }
-    return withRetry(pipeline, retryConfig);
+
+    return Effect.gen(function* () {
+      if (onRequestEffect) {
+        yield* onRequestEffect({
+          transport: transportName,
+          verb: verb as HttpVerb,
+          url,
+          body: body as unknown
+        });
+      }
+
+      const startTime = Date.now();
+      return yield* retriedPipeline.pipe(
+        Effect.tap((result) => {
+          if (onResponseEffect) {
+            return onResponseEffect({
+              transport: transportName,
+              verb: verb as HttpVerb,
+              url,
+              body: body as unknown,
+              statusCode: result.statusCode,
+              requestId: result.requestId,
+              durationMs: Date.now() - startTime
+            });
+          }
+          return Effect.void;
+        }),
+        Effect.tapError((error) => {
+          if (onErrorEffect) {
+            const statusCode = error._tag === "HttpStatusError" || error._tag === "RemoteStatusError"
+              ? (error as unknown as { statusCode: number }).statusCode
+              : undefined;
+            const requestId = error._tag === "TimeoutError" || error._tag === "HttpStatusError" || error._tag === "RemoteStatusError" || error._tag === "DecodeError"
+              ? (error as unknown as { requestId?: number | string }).requestId
+              : undefined;
+            return onErrorEffect({
+              transport: transportName,
+              verb: verb as HttpVerb,
+              url,
+              body: body as unknown,
+              error,
+              durationMs: Date.now() - startTime,
+              statusCode,
+              requestId
+            });
+          }
+          return Effect.void;
+        })
+      );
+    }) as Effect.Effect<SendResult<T>, TransportError, Transport>;
   }
 
   private async sendRaw(
@@ -990,12 +1073,80 @@ export class UnrealRC {
     options?: RequestOptionsBase
   ): Effect.Effect<TransportResponse, TransportError, Transport> {
     const retryConfig = this.resolveRetryConfig(options?.retry, verb as HttpVerb, url);
-    const pipeline = sendRequest({ verb, url, body, timeoutMs: options?.timeoutMs });
+    const transportName = this.transportName;
+    const onRequestEffect = this._onRequestEffect;
+    const onResponseEffect = this._onResponseEffect;
+    const onErrorEffect = this._onErrorEffect;
 
-    if (retryConfig === false) {
-      return pipeline;
+    const dispatchPipeline = sendRequest({ verb, url, body, timeoutMs: options?.timeoutMs }).pipe(
+      Effect.annotateLogs({ transport: transportName, verb, url }),
+      Effect.flatMap((response) =>
+        Effect.succeed(response).pipe(
+          Effect.annotateLogs({
+            statusCode: String(response.statusCode ?? ""),
+            requestId: String(response.requestId ?? "")
+          })
+        )
+      )
+    ) as Effect.Effect<TransportResponse, TransportError, Transport>;
+
+    const retriedPipeline = retryConfig === false
+      ? dispatchPipeline
+      : withRetry(dispatchPipeline, retryConfig);
+
+    if (!onRequestEffect && !onResponseEffect && !onErrorEffect) {
+      return retriedPipeline;
     }
-    return withRetry(pipeline, retryConfig);
+
+    return Effect.gen(function* () {
+      if (onRequestEffect) {
+        yield* onRequestEffect({
+          transport: transportName,
+          verb: verb as HttpVerb,
+          url,
+          body: body as unknown
+        });
+      }
+
+      const startTime = Date.now();
+      return yield* retriedPipeline.pipe(
+        Effect.tap((result) => {
+          if (onResponseEffect) {
+            return onResponseEffect({
+              transport: transportName,
+              verb: verb as HttpVerb,
+              url,
+              body: body as unknown,
+              statusCode: result.statusCode,
+              requestId: result.requestId,
+              durationMs: Date.now() - startTime
+            });
+          }
+          return Effect.void;
+        }),
+        Effect.tapError((error) => {
+          if (onErrorEffect) {
+            const statusCode = error._tag === "HttpStatusError" || error._tag === "RemoteStatusError"
+              ? (error as unknown as { statusCode: number }).statusCode
+              : undefined;
+            const requestId = error._tag === "TimeoutError" || error._tag === "HttpStatusError" || error._tag === "RemoteStatusError" || error._tag === "DecodeError"
+              ? (error as unknown as { requestId?: number | string }).requestId
+              : undefined;
+            return onErrorEffect({
+              transport: transportName,
+              verb: verb as HttpVerb,
+              url,
+              body: body as unknown,
+              error,
+              durationMs: Date.now() - startTime,
+              statusCode,
+              requestId
+            });
+          }
+          return Effect.void;
+        })
+      );
+    }) as Effect.Effect<TransportResponse, TransportError, Transport>;
   }
 }
 

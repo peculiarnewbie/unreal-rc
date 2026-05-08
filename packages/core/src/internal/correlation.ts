@@ -1,4 +1,4 @@
-import { ServiceMap, Deferred, Effect, HashMap, Layer, Ref } from "effect";
+import { Context, Deferred, Effect, HashMap, Layer, Ref } from "effect";
 import type { TransportResponse } from "./transport.js";
 import type { TransportError } from "./errors.js";
 
@@ -35,7 +35,7 @@ export interface PendingRequestsService {
   readonly snapshot: Effect.Effect<ReadonlyArray<PendingRequestSnapshot>>;
 }
 
-export class PendingRequests extends ServiceMap.Service<
+export class PendingRequests extends Context.Service<
   PendingRequests,
   PendingRequestsService
 >()("PendingRequests") {}

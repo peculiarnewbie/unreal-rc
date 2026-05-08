@@ -1,4 +1,4 @@
-import { ServiceMap, type Effect } from "effect";
+import { Context, type Effect } from "effect";
 import type { TransportError } from "./errors.js";
 
 export interface TransportRequest {
@@ -22,7 +22,7 @@ export interface PendingRequestInfo {
   readonly timeoutMs: number | undefined;
 }
 
-export class Transport extends ServiceMap.Service<
+export class Transport extends Context.Service<
   Transport,
   {
     readonly name: string;

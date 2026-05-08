@@ -2,7 +2,7 @@
 
 **Goal:** make unreal-rc Effect-native without breaking existing Promise users. Add typed Effect methods, public tagged errors, raw request support, schema-driven return decoding, and an injectable Effect service.
 
-**Status:** Phase 0 (remove positional overloads) is **done**. Object-arg-only signatures across all public APIs.
+**Status:** Phases 0–10 are **done**. Only Phase 11 (Electroswag follow-up) remains — to be done in the Electroswag repository.
 
 ---
 
@@ -325,9 +325,9 @@ After unreal-rc ships this, update Electroswag:
 ✅ Phase 5: Generic request / requestRaw
 ✅ Phase 6: callReturn with schema decoding
 ✅ Phase 7: Layer / service + package.json exports
-⬜ Phase 8: Observability hooks + tracing
-⬜ Phase 9: Documentation
-⬜ Phase 10: Test suite (run after each phase)
+✅ Phase 8: Observability hooks + tracing
+✅ Phase 9: Documentation
+✅ Phase 10: Test suite (run after each phase)
 ⬜ Phase 11: Electroswag follow-up
 ```
 
@@ -338,7 +338,7 @@ After unreal-rc ships this, update Electroswag:
 - [x] `new UnrealRC(options)` still works.
 - [x] `await ue.call({ objectPath, functionName, ... })` works (object-arg only).
 - [x] Existing thrown error class remains `TransportRequestError`.
-- [ ] Existing README examples work (updated to object-arg form).
+- [x] Existing README examples work (updated to object-arg form).
 - [x] Package still has the same main export.
 - [x] New Effect API (`ue.effect.*`) is additive only.
 - [x] `unreal-rc/effect` subpath export works.

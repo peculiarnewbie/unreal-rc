@@ -56,27 +56,32 @@ HTTP clients send `Passphrase: "smh ue, this is stupid"` by default. Override `p
 
 ## API Reference
 
-### `call(objectPath, functionName, parameters?, options?)`
+### `call(args)`
 
 Call a function on a remote UObject.
 
 ```ts
 // Call a Blueprint function
-await ue.call(
-  "/Game/Maps/Main.Main:PersistentLevel.MyActor",
-  "SetActorHiddenInGame",
-  { bNewHidden: false }
-);
+await ue.call({
+  objectPath: "/Game/Maps/Main.Main:PersistentLevel.MyActor",
+  functionName: "SetActorHiddenInGame",
+  parameters: { bNewHidden: false }
+});
 
 // Call with transaction support (for undo/redo in the editor)
-await ue.call(path, "IncrementCounter", { Delta: 5 }, { transaction: true });
+await ue.call({
+  objectPath: path,
+  functionName: "IncrementCounter",
+  parameters: { Delta: 5 },
+  transaction: true
+});
 
 // Access the return value
-const result = await ue.call(path, "GetHealth");
+const result = await ue.call({ objectPath: path, functionName: "GetHealth" });
 console.log(result.ReturnValue); // e.g. 100
 ```
 
-**Options:** `CallOptions`
+**Options:**
 
 | Option | Type | Description |
 |--------|------|-------------|
@@ -86,49 +91,49 @@ console.log(result.ReturnValue); // e.g. 100
 
 ---
 
-### `getProperty<T>(objectPath, propertyName, options?)`
+### `getProperty<T>(args)`
 
 Read a single property from a remote UObject. Returns the property value directly.
 
 ```ts
-const health = await ue.getProperty<number>(path, "Health");
+const health = await ue.getProperty<number>({ objectPath: path, propertyName: "Health" });
 // health === 100
 
-const location = await ue.getProperty<{ X: number; Y: number; Z: number }>(
-  path,
-  "RelativeLocation"
-);
+const location = await ue.getProperty<{ X: number; Y: number; Z: number }>({
+  objectPath: path,
+  propertyName: "RelativeLocation"
+});
 ```
 
 ---
 
-### `getProperties<T>(objectPath, options?)`
+### `getProperties<T>(args)`
 
 Read all properties from a remote UObject at once.
 
 ```ts
-const props = await ue.getProperties<{ Health: number; Mana: number }>(path);
+const props = await ue.getProperties<{ Health: number; Mana: number }>({ objectPath: path });
 // props.Health, props.Mana
 ```
 
 ---
 
-### `setProperty(objectPath, propertyName, value, options?)`
+### `setProperty(args)`
 
 Write a property on a remote UObject.
 
 ```ts
-await ue.setProperty(path, "Health", 100);
+await ue.setProperty({ objectPath: path, propertyName: "Health", propertyValue: 100 });
 
 // With transaction support
-await ue.setProperty(path, "Health", 100, { transaction: true });
+await ue.setProperty({ objectPath: path, propertyName: "Health", propertyValue: 100, transaction: true });
 
 // Setting a struct property
 import { vector } from "unreal-rc";
-await ue.setProperty(path, "RelativeLocation", vector(100, 200, 300));
+await ue.setProperty({ objectPath: path, propertyName: "RelativeLocation", propertyValue: vector(100, 200, 300) });
 ```
 
-**Options:** `SetPropertyOptions`
+**Arguments:**
 
 | Option | Type | Description |
 |--------|------|-------------|
@@ -139,12 +144,12 @@ await ue.setProperty(path, "RelativeLocation", vector(100, 200, 300));
 
 ---
 
-### `describe(objectPath, options?)`
+### `describe(args)`
 
 Get metadata about a remote UObject — its properties, functions, class, and display name.
 
 ```ts
-const meta = await ue.describe(path);
+const meta = await ue.describe({ objectPath: path });
 
 // List all exposed functions
 for (const fn of meta.Functions ?? []) {
@@ -172,19 +177,19 @@ for (const prop of meta.Properties ?? []) {
 
 ---
 
-### `searchAssets(query, options?)`
+### `searchAssets(args)`
 
 Search for assets in the project.
 
 ```ts
-const result = await ue.searchAssets("Chair");
+const result = await ue.searchAssets({ query: "Chair" });
 
 for (const asset of result.Assets ?? []) {
   console.log(asset.Name, asset.ObjectPath, asset.AssetClass);
 }
 ```
 
-**Options:** `SearchAssetsOptions`
+**Arguments:**
 
 | Option | Type | Description |
 |--------|------|-------------|
@@ -223,12 +228,12 @@ console.log(change.propertyValue); // new value after change
 
 ---
 
-### `thumbnail(objectPath, options?)`
+### `thumbnail(args)`
 
 Get a thumbnail image for an asset.
 
 ```ts
-const thumb = await ue.thumbnail("/Game/Meshes/Chair");
+const thumb = await ue.thumbnail({ objectPath: "/Game/Meshes/Chair" });
 ```
 
 ---
@@ -239,11 +244,11 @@ Execute multiple requests in a single round-trip. Each sub-request returns a `Ba
 
 ```ts
 const results = await ue.batch((b) => {
-  b.call(path, "ResetFixtures");
-  b.getProperty(path, "Health");
-  b.setProperty(path, "Score", 0);
-  b.describe(path);
-  b.searchAssets("Chair");
+  b.call({ objectPath: path, functionName: "ResetFixtures" });
+  b.getProperty({ objectPath: path, propertyName: "Health" });
+  b.setProperty({ objectPath: path, propertyName: "Score", propertyValue: 0 });
+  b.describe({ objectPath: path });
+  b.searchAssets({ query: "Chair" });
   b.request("GET", "/remote/info"); // raw request
 });
 
@@ -322,7 +327,7 @@ transform(vector(0, 0, 0), rotator(0, 90, 0));
 ```ts
 import { parseReturnValue } from "unreal-rc";
 
-const response = await ue.call(path, "GetHealth");
+const response = await ue.call({ objectPath: path, functionName: "GetHealth" });
 const health = parseReturnValue<number>(response);          // reads .ReturnValue
 const health = parseReturnValue<number>(response, "Health"); // reads .Health
 ```
@@ -335,7 +340,7 @@ All transport errors are thrown as `TransportRequestError` with structured metad
 import { TransportRequestError } from "unreal-rc";
 
 try {
-  await ue.call(path, "DoSomething");
+  await ue.call({ objectPath: path, functionName: "DoSomething" });
 } catch (error) {
   if (error instanceof TransportRequestError) {
     error.kind;       // "timeout" | "connect" | "disconnect" | "http_status"
@@ -373,13 +378,15 @@ const ue = new UnrealRC({
 });
 
 // Per-request override
-await ue.call(path, "SlowFunction", {}, {
+await ue.call({
+  objectPath: path,
+  functionName: "SlowFunction",
   retry: { maxAttempts: 10, delayMs: 500 },
-  timeoutMs: 30000,
+  timeoutMs: 30000
 });
 
 // Disable retries for a specific request
-await ue.call(path, "FastFunction", {}, { retry: false });
+await ue.call({ objectPath: path, functionName: "FastFunction", retry: false });
 ```
 
 ## Hooks
@@ -413,6 +420,192 @@ const ue = new UnrealRC({
 
 **`ErrorHookContext`:** `{ transport, verb, url, body, error, errorBody, attempt, durationMs, statusCode, requestId }`
 
+### Effect-Native Hooks
+
+Effect-native hooks run inside the request pipeline and propagate failures (unlike callback hooks which silently ignore errors). Use them when you need typed, fail-fast observability in an Effect program.
+
+```ts
+import { Effect } from "effect";
+
+const ue = new UnrealRC({
+  onRequestEffect: (ctx) => Effect.logInfo(`>> ${ctx.verb} ${ctx.url}`),
+  onResponseEffect: (ctx) =>
+    Effect.logInfo(`<< ${ctx.statusCode} (${ctx.durationMs}ms)`),
+  onErrorEffect: (ctx) =>
+    Effect.logError(`${ctx.error._tag}: ${ctx.error.message}`),
+});
+
+// Callback hooks and Effect hooks can coexist
+const ue = new UnrealRC({
+  onRequest: (ctx) => { /* callback: errors ignored */ },
+  onRequestEffect: (ctx) => Effect.logInfo("..."), // fails propagate
+});
+```
+
+## Effect API
+
+All request methods are available on `ue.effect.*` with the same argument types as the Promise API. Effect methods return `Effect<...>` with tagged `TransportError` errors.
+
+```ts
+import { UnrealRC } from "unreal-rc";
+import { Effect } from "effect";
+
+const ue = new UnrealRC();
+
+// Same argument shapes as the Promise API
+const program = Effect.gen(function* () {
+  const result = yield* ue.effect.call({
+    objectPath: "/Game/Maps/Main.Main:Actor",
+    functionName: "GetHealth"
+  });
+  return result.ReturnValue;
+});
+```
+
+### Error Handling with Effect
+
+Effect methods fail with a tagged `TransportError` union. Narrow errors with `catchTag` or `catchTags`:
+
+```ts
+import { TimeoutError, ConnectError, HttpStatusError } from "unreal-rc/effect";
+
+const robustCall = ue.effect.call({
+  objectPath: "/Game/Maps/Main.Main:Actor",
+  functionName: "GetHealth"
+}).pipe(
+  Effect.catchTag("TimeoutError", (e) => Effect.succeed({ ReturnValue: -1 })),
+  Effect.catchTag("ConnectError", (e) =>
+    Effect.fail(new Error(`Unreal not running: ${e.message}`))
+  ),
+  Effect.catchTag("HttpStatusError", (e) =>
+    Effect.succeed({ ReturnValue: e.statusCode })
+  )
+);
+```
+
+**Error tags:** `TimeoutError`, `ConnectError`, `DisconnectError`, `HttpStatusError`, `RemoteStatusError`, `DecodeError`.
+
+Import tagged error classes from `unreal-rc/effect`:
+
+```ts
+import {
+  TimeoutError,
+  ConnectError,
+  DisconnectError,
+  HttpStatusError,
+  RemoteStatusError,
+  DecodeError,
+  type TransportError
+} from "unreal-rc/effect";
+```
+
+### Schema-Driven Return Decoding (`callReturn`)
+
+`callReturn` calls `/remote/object/call` and decodes only the `ReturnValue` field with a schema, eliminating manual unwrapping:
+
+```ts
+import { Schema } from "effect";
+
+const ScoreSchema = Schema.Struct({ points: Schema.Number, rank: Schema.String });
+
+// Promise API
+const score = await ue.callReturn({
+  objectPath: "/Game/Maps/Main.Main:Actor",
+  functionName: "GetScore",
+  returnSchema: ScoreSchema
+});
+// score: { points: number; rank: string }
+
+// Effect API
+const score = yield* ue.effect.callReturn({
+  objectPath: "/Game/Maps/Main.Main:Actor",
+  functionName: "GetScore",
+  returnSchema: ScoreSchema
+}).pipe(
+  Effect.catchTag("DecodeError", () => Effect.succeed({ points: 0, rank: "unknown" }))
+);
+```
+
+### Generic Requests (`request` / `requestRaw`)
+
+Send arbitrary HTTP requests to Unreal Remote Control endpoints:
+
+```ts
+// Decoded request — validates response with an optional schema
+const data = await ue.request({
+  verb: "GET",
+  url: "/remote/info",
+  responseSchema: InfoResponseSchema
+});
+
+// Raw request — returns the full TransportResponse
+const raw = await ue.requestRaw({
+  verb: "PUT",
+  url: "/remote/search/assets",
+  body: { query: "Chair" }
+});
+// raw: { body: unknown; statusCode?: number; requestId?: number | string }
+
+// Effect equivalents
+const data = yield* ue.effect.request({ verb: "GET", url: "/remote/info" });
+const raw = yield* ue.effect.requestRaw({ verb: "PUT", url: "/custom", body: { key: "val" } });
+```
+
+### Effect Layer / Service
+
+For full Effect applications, use the injectable service layer:
+
+```ts
+import { UnrealRCService, UnrealRCLive } from "unreal-rc/effect";
+import { Effect } from "effect";
+
+// Define your program against the service interface
+const program = Effect.gen(function* () {
+  const ue = yield* UnrealRCService;
+  const info = yield* ue.info();
+  const result = yield* ue.call({
+    objectPath: "/Game/Maps/Main.Main:Actor",
+    functionName: "GetHealth"
+  });
+  return result.ReturnValue;
+});
+
+// Provide the live layer at the edge
+await Effect.runPromise(
+  program.pipe(
+    Effect.provide(UnrealRCLive({ transport: "http" }))
+  )
+);
+```
+
+The service is scoped — `dispose` is called automatically when the Effect scope ends.
+
+For testing, use `UnrealRCTest` as a stub layer:
+
+```ts
+import { UnrealRCTest } from "unreal-rc/effect";
+
+// Replace with your own implementation in tests
+const testLayer = Layer.succeed(UnrealRCService, {
+  call: () => Effect.succeed({ ReturnValue: "mocked" }),
+  // ... other methods
+});
+```
+
+### Migration Note
+
+**Positional overloads have been removed.** All methods now take a single object argument:
+
+```ts
+// ✅ Current (object-arg)
+await ue.call({ objectPath: "/Foo", functionName: "Bar" });
+
+// ❌ Removed (positional)
+await ue.call("/Foo", "Bar");
+```
+
+This applies to `call`, `getProperty`, `getProperties`, `setProperty`, `describe`, `searchAssets`, `thumbnail`, and `batch` builder methods. The Effect API (`ue.effect.*`) uses the same object-arg shapes.
+
 ## Low-Level Exports
 
 For building custom tooling or higher-level abstractions, the package also exports:
@@ -427,7 +620,11 @@ For building custom tooling or higher-level abstractions, the package also expor
 import { buildCallRequest, BatchBuilder } from "unreal-rc";
 
 // Build a raw request body
-const body = buildCallRequest(path, "SetActorHiddenInGame", { bNewHidden: false });
+const body = buildCallRequest({
+  objectPath: path,
+  functionName: "SetActorHiddenInGame",
+  parameters: { bNewHidden: false }
+});
 // Use with your own HTTP client, CLI tool, etc.
 ```
 
