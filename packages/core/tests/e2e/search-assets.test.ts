@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import {
   acquireFixture,
   releaseFixture,
@@ -7,7 +7,7 @@ import {
   getBootTimeoutMs,
   resolveFixtureContract,
   resolveLaunchOptions,
-  waitForRemoteControlHttp
+  waitForRemoteControlHttp,
 } from "./setup.js";
 
 const searchAssetsTest = process.env.UNREAL_E2E === "1" ? test : test.skip;
@@ -22,7 +22,7 @@ searchAssetsTest(
     let currentStep = "wait for Remote Control HTTP";
     const requestOptions = {
       timeoutMs: launchOptions.requestTimeoutMs,
-      retry: false
+      retry: false,
     } as const;
 
     try {
@@ -37,8 +37,8 @@ searchAssetsTest(
         nameResults.some(
           (asset) =>
             (asset.Name?.includes("E2EFixture") ?? false) ||
-            (asset.ObjectPath?.includes("E2EFixture") ?? false)
-        )
+            (asset.ObjectPath?.includes("E2EFixture") ?? false),
+        ),
       ).toBe(true);
 
       currentStep = "search by package path /Game/Maps";
@@ -46,7 +46,7 @@ searchAssetsTest(
         query: "",
         packagePaths: ["/Game/Maps"],
         recursivePaths: true,
-        ...requestOptions
+        ...requestOptions,
       });
       const pathResults = byPath.Assets ?? byPath.Results ?? [];
 
@@ -55,7 +55,7 @@ searchAssetsTest(
       currentStep = "search with nonsense query returns empty results";
       const nonsense = await clients.http.searchAssets({
         query: "ZZZ_NonexistentAsset_XYZ_999",
-        ...requestOptions
+        ...requestOptions,
       });
       const nonsenseResults = nonsense.Assets ?? nonsense.Results ?? [];
 
@@ -68,13 +68,13 @@ searchAssetsTest(
           handle,
           diagnostics: clients.diagnostics,
           contract,
-          launchOptions
-        })
+          launchOptions,
+        }),
       );
     } finally {
       clients.dispose();
       await releaseFixture();
     }
   },
-  getBootTimeoutMs() + 60_000
+  getBootTimeoutMs() + 60_000,
 );

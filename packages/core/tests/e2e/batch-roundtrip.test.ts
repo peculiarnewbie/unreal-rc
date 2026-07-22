@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import type { SetPropertyArgs } from "../../src/index.js";
 import {
   acquireFixture,
@@ -8,7 +8,7 @@ import {
   getBootTimeoutMs,
   resolveFixtureContract,
   resolveLaunchOptions,
-  waitForRemoteControlHttp
+  waitForRemoteControlHttp,
 } from "./setup.js";
 
 const batchRoundtripTest = process.env.UNREAL_E2E === "1" ? test : test.skip;
@@ -23,7 +23,7 @@ batchRoundtripTest(
     let currentStep = "wait for Remote Control HTTP";
     const requestOptions = {
       timeoutMs: launchOptions.requestTimeoutMs,
-      retry: false
+      retry: false,
     } as const;
 
     try {
@@ -35,7 +35,7 @@ batchRoundtripTest(
         objectPath: contract.objectPath,
         propertyName: contract.propertyName,
         propertyValue: contract.baselineValue,
-        ...requestOptions
+        ...requestOptions,
       });
 
       // Batch 1: describe + getProperty + call in one round-trip
@@ -43,7 +43,11 @@ batchRoundtripTest(
       const results = await clients.http.batch((b) => {
         b.describe(contract.objectPath);
         b.getProperty({ objectPath: contract.objectPath, propertyName: contract.propertyName });
-        b.call({ objectPath: contract.objectPath, functionName: contract.functionName, parameters: { [contract.functionArgumentName]: contract.httpCallDelta } });
+        b.call({
+          objectPath: contract.objectPath,
+          functionName: contract.functionName,
+          parameters: { [contract.functionArgumentName]: contract.httpCallDelta },
+        });
       }, requestOptions);
 
       expect(results).toHaveLength(3);
@@ -75,7 +79,11 @@ batchRoundtripTest(
       const writeValue = contract.httpWriteValue;
       currentStep = `batch setProperty(${writeValue}) + getProperty`;
       const writeReadResults = await clients.http.batch((b) => {
-        b.setProperty({ objectPath: contract.objectPath, propertyName: contract.propertyName, propertyValue: writeValue });
+        b.setProperty({
+          objectPath: contract.objectPath,
+          propertyName: contract.propertyName,
+          propertyValue: writeValue,
+        });
         b.getProperty({ objectPath: contract.objectPath, propertyName: contract.propertyName });
       }, requestOptions);
 
@@ -94,8 +102,8 @@ batchRoundtripTest(
           handle,
           diagnostics: clients.diagnostics,
           contract,
-          launchOptions
-        })
+          launchOptions,
+        }),
       );
     } finally {
       try {
@@ -104,7 +112,7 @@ batchRoundtripTest(
           propertyName: contract.propertyName,
           propertyValue: contract.baselineValue,
           timeoutMs: launchOptions.requestTimeoutMs,
-          retry: false
+          retry: false,
         });
       } catch {}
 
@@ -112,5 +120,5 @@ batchRoundtripTest(
       await releaseFixture();
     }
   },
-  getBootTimeoutMs() + 60_000
+  getBootTimeoutMs() + 60_000,
 );

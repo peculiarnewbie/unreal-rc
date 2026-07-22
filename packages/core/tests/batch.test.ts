@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "vitest";
 import {
   BatchBuilder,
   UnrealRC,
   buildBatchRequest,
   buildCallRequest,
   buildDescribeRequest,
-  buildPropertyRequest
+  buildPropertyRequest,
 } from "../src/index.js";
 import type { BatchRequestItem, BatchResponse } from "../src/index.js";
 import { correlateBatchResponses } from "../src/internal/batch.js";
@@ -43,7 +43,7 @@ const createFetchMock = (responses: MockResponseEntry[]) => {
 
     return new Response(responseBody, {
       status,
-      headers: responseBody ? { "content-type": "application/json" } : {}
+      headers: responseBody ? { "content-type": "application/json" } : {},
     });
   };
 
@@ -60,15 +60,12 @@ afterEach(() => {
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
-const makeHttpClient = (
-  responses: MockResponseEntry[],
-  options: Record<string, unknown> = {}
-) => {
+const makeHttpClient = (responses: MockResponseEntry[], options: Record<string, unknown> = {}) => {
   const mock = createFetchMock(responses);
   const client = new UnrealRC({
     transport: "http",
     http: { baseUrl: "http://127.0.0.1:30010" },
-    ...options
+    ...options,
   } as ConstructorParameters<typeof UnrealRC>[0]);
   return { client, requests: mock.requests };
 };
@@ -81,7 +78,9 @@ describe("BatchBuilder", () => {
     expect(builder.call({ objectPath: "/A", functionName: "Fn" })).toBe(0);
     expect(builder.describe("/B")).toBe(1);
     expect(builder.getProperty({ objectPath: "/C", propertyName: "Prop" })).toBe(2);
-    expect(builder.setProperty({ objectPath: "/D", propertyName: "Prop", propertyValue: 1 })).toBe(3);
+    expect(builder.setProperty({ objectPath: "/D", propertyName: "Prop", propertyValue: 1 })).toBe(
+      3,
+    );
     expect(builder.searchAssets({ query: "query" })).toBe(4);
     expect(builder.request("GET", "/remote/info")).toBe(5);
   });
@@ -99,7 +98,12 @@ describe("BatchBuilder", () => {
 
   test("call builds correct request shape", () => {
     const builder = new BatchBuilder();
-    builder.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Add", parameters: { Delta: 5 }, transaction: true });
+    builder.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "Add",
+      parameters: { Delta: 5 },
+      transaction: true,
+    });
 
     const requests = builder.getRequests();
     expect(requests[0]).toEqual({
@@ -110,8 +114,8 @@ describe("BatchBuilder", () => {
         objectPath: "/Game/Maps/Main.Main:Actor",
         functionName: "Add",
         parameters: { Delta: 5 },
-        generateTransaction: true
-      }
+        generateTransaction: true,
+      },
     });
   });
 
@@ -133,7 +137,11 @@ describe("BatchBuilder", () => {
 
   test("getProperty with explicit access mode", () => {
     const builder = new BatchBuilder();
-    builder.getProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter", access: "WRITE_ACCESS" });
+    builder.getProperty({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      propertyName: "Counter",
+      access: "WRITE_ACCESS",
+    });
 
     const body = builder.getRequests()[0]?.Body as Record<string, unknown>;
     expect(body.access).toBe("WRITE_ACCESS");
@@ -141,7 +149,11 @@ describe("BatchBuilder", () => {
 
   test("setProperty defaults to WRITE_ACCESS", () => {
     const builder = new BatchBuilder();
-    builder.setProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter", propertyValue: 10 });
+    builder.setProperty({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      propertyName: "Counter",
+      propertyValue: 10,
+    });
 
     const body = builder.getRequests()[0]?.Body as Record<string, unknown>;
     expect(body.access).toBe("WRITE_ACCESS");
@@ -150,7 +162,12 @@ describe("BatchBuilder", () => {
 
   test("setProperty with transaction uses WRITE_TRANSACTION_ACCESS", () => {
     const builder = new BatchBuilder();
-    builder.setProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter", propertyValue: 10, transaction: true });
+    builder.setProperty({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      propertyName: "Counter",
+      propertyValue: 10,
+      transaction: true,
+    });
 
     const body = builder.getRequests()[0]?.Body as Record<string, unknown>;
     expect(body.access).toBe("WRITE_TRANSACTION_ACCESS");
@@ -158,7 +175,12 @@ describe("BatchBuilder", () => {
 
   test("setProperty with explicit access overrides default", () => {
     const builder = new BatchBuilder();
-    builder.setProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter", propertyValue: 10, access: "WRITE_TRANSACTION_ACCESS" });
+    builder.setProperty({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      propertyName: "Counter",
+      propertyValue: 10,
+      access: "WRITE_TRANSACTION_ACCESS",
+    });
 
     const body = builder.getRequests()[0]?.Body as Record<string, unknown>;
     expect(body.access).toBe("WRITE_TRANSACTION_ACCESS");
@@ -172,7 +194,7 @@ describe("BatchBuilder", () => {
       RequestId: 0,
       URL: "/remote/object/describe",
       Verb: "PUT",
-      Body: { objectPath: "/Game/Maps/Main.Main:Actor" }
+      Body: { objectPath: "/Game/Maps/Main.Main:Actor" },
     });
   });
 
@@ -181,7 +203,7 @@ describe("BatchBuilder", () => {
     builder.searchAssets({
       query: "Chair",
       classNames: ["StaticMesh"],
-      recursivePaths: true
+      recursivePaths: true,
     });
 
     const body = builder.getRequests()[0]?.Body as Record<string, unknown>;
@@ -198,7 +220,7 @@ describe("BatchBuilder", () => {
       RequestId: 0,
       URL: "/custom/endpoint",
       Verb: "POST",
-      Body: { key: "value" }
+      Body: { key: "value" },
     });
   });
 
@@ -227,7 +249,10 @@ describe("BatchBuilder", () => {
 
 describe("pure protocol builders", () => {
   test("buildCallRequest without transaction omits generateTransaction", () => {
-    const req = buildCallRequest({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
+    const req = buildCallRequest({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "Ping",
+    });
     expect(req.generateTransaction).toBeUndefined();
     expect(req.parameters).toBeUndefined();
   });
@@ -236,7 +261,7 @@ describe("pure protocol builders", () => {
     const req = buildCallRequest({
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "Ping",
-      transaction: false
+      transaction: false,
     });
 
     expect(req.generateTransaction).toBe(false);
@@ -245,7 +270,7 @@ describe("pure protocol builders", () => {
   test("buildPropertyRequest normalizes scalar value into property map", () => {
     const req = buildPropertyRequest("/Game/Maps/Main.Main:Actor", {
       propertyName: "Health",
-      propertyValue: 100
+      propertyValue: 100,
     });
     expect(req.propertyValue).toEqual({ Health: 100 });
   });
@@ -253,21 +278,21 @@ describe("pure protocol builders", () => {
   test("buildPropertyRequest preserves pre-wrapped value", () => {
     const req = buildPropertyRequest("/Game/Maps/Main.Main:Actor", {
       propertyName: "Health",
-      propertyValue: { Health: 100 }
+      propertyValue: { Health: 100 },
     });
     expect(req.propertyValue).toEqual({ Health: 100 });
   });
 
   test("buildPropertyRequest without propertyName passes value through", () => {
     const req = buildPropertyRequest("/Game/Maps/Main.Main:Actor", {
-      propertyValue: { Counter: 5 }
+      propertyValue: { Counter: 5 },
     });
     expect(req.propertyValue).toEqual({ Counter: 5 });
   });
 
   test("buildPropertyRequest defaults access to READ_ACCESS for reads", () => {
     const req = buildPropertyRequest("/Game/Maps/Main.Main:Actor", {
-      propertyName: "Counter"
+      propertyName: "Counter",
     });
     expect(req.access).toBe("READ_ACCESS");
   });
@@ -275,7 +300,7 @@ describe("pure protocol builders", () => {
   test("buildPropertyRequest defaults access to WRITE_ACCESS for writes", () => {
     const req = buildPropertyRequest("/Game/Maps/Main.Main:Actor", {
       propertyName: "Counter",
-      propertyValue: 5
+      propertyValue: 5,
     });
     expect(req.access).toBe("WRITE_ACCESS");
   });
@@ -284,7 +309,7 @@ describe("pure protocol builders", () => {
     const req = buildPropertyRequest("/Game/Maps/Main.Main:Actor", {
       propertyName: "Counter",
       propertyValue: 5,
-      transaction: true
+      transaction: true,
     });
     expect(req.access).toBe("WRITE_TRANSACTION_ACCESS");
   });
@@ -293,7 +318,7 @@ describe("pure protocol builders", () => {
     const req = buildPropertyRequest("/Game/Maps/Main.Main:Actor", {
       propertyName: "Counter",
       propertyValue: 5,
-      access: "WRITE_TRANSACTION_ACCESS"
+      access: "WRITE_TRANSACTION_ACCESS",
     });
     expect(req.access).toBe("WRITE_TRANSACTION_ACCESS");
   });
@@ -308,7 +333,9 @@ describe("pure protocol builders", () => {
   });
 
   test("buildCallRequest rejects empty functionName", () => {
-    expect(() => buildCallRequest({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "" })).toThrow();
+    expect(() =>
+      buildCallRequest({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "" }),
+    ).toThrow();
   });
 
   test("buildDescribeRequest rejects empty objectPath", () => {
@@ -325,7 +352,7 @@ describe("pure protocol builders", () => {
   test("buildBatchRequest accepts array of BatchRequestItems", () => {
     const items: BatchRequestItem[] = [
       { RequestId: 0, URL: "/remote/info", Verb: "GET" },
-      { RequestId: 1, URL: "/remote/object/describe", Verb: "PUT", Body: { objectPath: "/A" } }
+      { RequestId: 1, URL: "/remote/object/describe", Verb: "PUT", Body: { objectPath: "/A" } },
     ];
     const batch = buildBatchRequest(items);
     expect(batch.Requests).toHaveLength(2);
@@ -338,13 +365,13 @@ describe("correlateBatchResponses", () => {
   test("matches responses to requests by RequestId", () => {
     const requests: BatchRequestItem[] = [
       { RequestId: 0, URL: "/remote/object/call", Verb: "PUT" },
-      { RequestId: 1, URL: "/remote/info", Verb: "GET" }
+      { RequestId: 1, URL: "/remote/info", Verb: "GET" },
     ];
     const response: BatchResponse = {
       Responses: [
         { RequestId: 1, ResponseCode: 200, ResponseBody: { HttpRoutes: [] } },
-        { RequestId: 0, ResponseCode: 200, ResponseBody: { ReturnValue: 42 } }
-      ]
+        { RequestId: 0, ResponseCode: 200, ResponseBody: { ReturnValue: 42 } },
+      ],
     };
 
     const results = correlateBatchResponses(requests, response);
@@ -354,25 +381,23 @@ describe("correlateBatchResponses", () => {
       requestId: 0,
       statusCode: 200,
       body: { ReturnValue: 42 },
-      request: requests[0]
+      request: requests[0],
     });
     expect(results[1]).toEqual({
       requestId: 1,
       statusCode: 200,
       body: { HttpRoutes: [] },
-      request: requests[1]
+      request: requests[1],
     });
   });
 
   test("assigns statusCode 0 for missing responses", () => {
     const requests: BatchRequestItem[] = [
       { RequestId: 0, URL: "/remote/object/call", Verb: "PUT" },
-      { RequestId: 1, URL: "/remote/object/describe", Verb: "PUT" }
+      { RequestId: 1, URL: "/remote/object/describe", Verb: "PUT" },
     ];
     const response: BatchResponse = {
-      Responses: [
-        { RequestId: 0, ResponseCode: 200, ResponseBody: { ReturnValue: true } }
-      ]
+      Responses: [{ RequestId: 0, ResponseCode: 200, ResponseBody: { ReturnValue: true } }],
     };
 
     const results = correlateBatchResponses(requests, response);
@@ -381,14 +406,12 @@ describe("correlateBatchResponses", () => {
       requestId: 1,
       statusCode: 0,
       body: undefined,
-      request: requests[1]
+      request: requests[1],
     });
   });
 
   test("handles empty Responses array", () => {
-    const requests: BatchRequestItem[] = [
-      { RequestId: 0, URL: "/remote/info", Verb: "GET" }
-    ];
+    const requests: BatchRequestItem[] = [{ RequestId: 0, URL: "/remote/info", Verb: "GET" }];
     const response: BatchResponse = { Responses: [] };
 
     const results = correlateBatchResponses(requests, response);
@@ -399,9 +422,7 @@ describe("correlateBatchResponses", () => {
   });
 
   test("handles undefined Responses", () => {
-    const requests: BatchRequestItem[] = [
-      { RequestId: 0, URL: "/remote/info", Verb: "GET" }
-    ];
+    const requests: BatchRequestItem[] = [{ RequestId: 0, URL: "/remote/info", Verb: "GET" }];
     const response: BatchResponse = {};
 
     const results = correlateBatchResponses(requests, response);
@@ -412,7 +433,7 @@ describe("correlateBatchResponses", () => {
 
   test("handles empty requests array", () => {
     const response: BatchResponse = {
-      Responses: [{ RequestId: 0, ResponseCode: 200 }]
+      Responses: [{ RequestId: 0, ResponseCode: 200 }],
     };
 
     const results = correlateBatchResponses([], response);
@@ -421,12 +442,10 @@ describe("correlateBatchResponses", () => {
 
   test("preserves error response bodies", () => {
     const requests: BatchRequestItem[] = [
-      { RequestId: 0, URL: "/remote/object/call", Verb: "PUT" }
+      { RequestId: 0, URL: "/remote/object/call", Verb: "PUT" },
     ];
     const response: BatchResponse = {
-      Responses: [
-        { RequestId: 0, ResponseCode: 404, ResponseBody: { errorMessage: "not found" } }
-      ]
+      Responses: [{ RequestId: 0, ResponseCode: 404, ResponseBody: { errorMessage: "not found" } }],
     };
 
     const results = correlateBatchResponses(requests, response);
@@ -439,7 +458,7 @@ describe("correlateBatchResponses", () => {
     const requests: BatchRequestItem[] = Array.from({ length: 5 }, (_, i) => ({
       RequestId: i,
       URL: `/remote/op/${i}`,
-      Verb: "PUT" as const
+      Verb: "PUT" as const,
     }));
 
     const response: BatchResponse = {
@@ -447,9 +466,9 @@ describe("correlateBatchResponses", () => {
         { RequestId: 4, ResponseCode: 200, ResponseBody: { id: 4 } },
         { RequestId: 1, ResponseCode: 200, ResponseBody: { id: 1 } },
         { RequestId: 3, ResponseCode: 500, ResponseBody: { error: "fail" } },
-        { RequestId: 0, ResponseCode: 200, ResponseBody: { id: 0 } }
+        { RequestId: 0, ResponseCode: 200, ResponseBody: { id: 0 } },
         // RequestId 2 is missing
-      ]
+      ],
     };
 
     const results = correlateBatchResponses(requests, response);
@@ -468,9 +487,7 @@ describe("correlateBatchResponses", () => {
 
 describe("client.batch", () => {
   test("sends empty batch when builder has no requests", async () => {
-    const { client, requests } = makeHttpClient([
-      { body: { Responses: [] }, statusCode: 200 }
-    ]);
+    const { client, requests } = makeHttpClient([{ body: { Responses: [] }, statusCode: 200 }]);
 
     const results = await client.batch(() => {});
 
@@ -482,12 +499,10 @@ describe("client.batch", () => {
     const { client, requests } = makeHttpClient([
       {
         body: {
-          Responses: [
-            { RequestId: 0, ResponseCode: 200, ResponseBody: { ReturnValue: 42 } }
-          ]
+          Responses: [{ RequestId: 0, ResponseCode: 200, ResponseBody: { ReturnValue: 42 } }],
         },
-        statusCode: 200
-      }
+        statusCode: 200,
+      },
     ]);
 
     const results = await client.batch((b) => {
@@ -505,11 +520,11 @@ describe("client.batch", () => {
         body: {
           Responses: [
             { RequestId: 0, ResponseCode: 500, ResponseBody: { error: "a" } },
-            { RequestId: 1, ResponseCode: 404, ResponseBody: { error: "b" } }
-          ]
+            { RequestId: 1, ResponseCode: 404, ResponseBody: { error: "b" } },
+          ],
         },
-        statusCode: 200
-      }
+        statusCode: 200,
+      },
     ]);
 
     const results = await client.batch((b) => {
@@ -530,18 +545,22 @@ describe("client.batch", () => {
             { RequestId: 0, ResponseCode: 200, ResponseBody: { ReturnValue: true } },
             { RequestId: 1, ResponseCode: 200, ResponseBody: { Name: "Actor" } },
             { RequestId: 2, ResponseCode: 200, ResponseBody: { Counter: 42 } },
-            { RequestId: 3, ResponseCode: 200, ResponseBody: {} }
-          ]
+            { RequestId: 3, ResponseCode: 200, ResponseBody: {} },
+          ],
         },
-        statusCode: 200
-      }
+        statusCode: 200,
+      },
     ]);
 
     const results = await client.batch((b) => {
       b.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Reset" });
       b.describe("/Game/Maps/Main.Main:Actor");
       b.getProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter" });
-      b.setProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter", propertyValue: 0 });
+      b.setProperty({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        propertyName: "Counter",
+        propertyValue: 0,
+      });
     });
 
     expect(results).toHaveLength(4);
@@ -555,17 +574,15 @@ describe("client.batch", () => {
   });
 
   test("propagates HTTP-level batch failure as error", async () => {
-    const { client } = makeHttpClient([
-      { body: { error: "server error" }, statusCode: 500 }
-    ]);
+    const { client } = makeHttpClient([{ body: { error: "server error" }, statusCode: 500 }]);
 
     await expect(
       client.batch((b) => {
         b.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
-      })
+      }),
     ).rejects.toMatchObject({
       kind: "http_status",
-      statusCode: 500
+      statusCode: 500,
     });
   });
 
@@ -573,12 +590,10 @@ describe("client.batch", () => {
     const { client } = makeHttpClient([
       {
         body: {
-          Responses: [
-            { RequestId: 0, ResponseCode: 200, ResponseBody: { ReturnValue: 1 } }
-          ]
+          Responses: [{ RequestId: 0, ResponseCode: 200, ResponseBody: { ReturnValue: 1 } }],
         },
-        statusCode: 200
-      }
+        statusCode: 200,
+      },
     ]);
 
     const results = await client.batch(async (b) => {

@@ -4,9 +4,14 @@ import {
   DisconnectError,
   RemoteStatusError,
   TimeoutError,
-  type TransportError
+  type TransportError,
 } from "./errors.js";
-import { Transport, type PendingRequestInfo, type TransportRequest, type TransportResponse } from "./transport.js";
+import {
+  Transport,
+  type PendingRequestInfo,
+  type TransportRequest,
+  type TransportResponse,
+} from "./transport.js";
 import { heartbeat } from "./heartbeat.js";
 import { PendingRequests, PendingRequestsLive } from "./correlation.js";
 import { WebSocketTransportOptionsSchema } from "./config-schemas.js";
@@ -66,9 +71,11 @@ interface QueuedRequest {
 }
 
 export const WebSocketTransportLive = (
-  options: WebSocketTransportOptions = {}
+  options: WebSocketTransportOptions = {},
 ): Layer.Layer<Transport> => {
-  Schema.decodeUnknownSync(WebSocketTransportOptionsSchema)(options, { onExcessProperty: "ignore" });
+  Schema.decodeUnknownSync(WebSocketTransportOptionsSchema)(options, {
+    onExcessProperty: "ignore",
+  });
   const url =
     options.baseUrl ??
     `${options.secure ? "wss" : "ws"}://${options.host ?? DEFAULT_HOST}:${options.port ?? DEFAULT_PORT}`;
@@ -76,20 +83,23 @@ export const WebSocketTransportLive = (
   const defaultRequestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
   const pingIntervalMs = options.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
   const autoReconnect = options.autoReconnect ?? true;
-  const reconnectInitialDelayMs = options.reconnectInitialDelayMs ?? DEFAULT_RECONNECT_INITIAL_DELAY_MS;
+  const reconnectInitialDelayMs =
+    options.reconnectInitialDelayMs ?? DEFAULT_RECONNECT_INITIAL_DELAY_MS;
   const reconnectMaxDelayMs = options.reconnectMaxDelayMs ?? DEFAULT_RECONNECT_MAX_DELAY_MS;
   const reconnectBackoffFactor = options.reconnectBackoffFactor ?? DEFAULT_RECONNECT_BACKOFF_FACTOR;
   const disconnectedBehavior = options.disconnectedBehavior ?? "queue";
   const maxQueueSize = options.maxQueueSize ?? DEFAULT_MAX_QUEUE_SIZE;
   const onDisconnect = options.onDisconnect;
   const onReconnect = options.onReconnect;
-  const createTimeoutError = (item: Pick<QueuedRequest, "timeoutMs" | "verb" | "url" | "requestId">) =>
+  const createTimeoutError = (
+    item: Pick<QueuedRequest, "timeoutMs" | "verb" | "url" | "requestId">,
+  ) =>
     new TimeoutError({
       message: `WebSocket request timed out after ${item.timeoutMs}ms`,
       transport: "ws",
       verb: item.verb,
       url: item.url,
-      requestId: item.requestId
+      requestId: item.requestId,
     });
 
   return Layer.provide(
@@ -100,7 +110,9 @@ export const WebSocketTransportLive = (
         const socketRef = yield* Ref.make<WebSocket | undefined>(undefined);
         const connectedRef = yield* Ref.make(false);
         const disposedRef = yield* Ref.make(false);
-        const connectionFiber = yield* Ref.make<Fiber.Fiber<void, TransportError> | undefined>(undefined);
+        const connectionFiber = yield* Ref.make<Fiber.Fiber<void, TransportError> | undefined>(
+          undefined,
+        );
         const hasConnectedBefore = yield* Ref.make(false);
 
         // ── Connect once ──────────────────────────────────────────────
@@ -120,9 +132,9 @@ export const WebSocketTransportLive = (
               Effect.fail(
                 new TimeoutError({
                   message: `WebSocket connect timed out after ${connectTimeoutMs}ms`,
-                  transport: "ws"
-                })
-              )
+                  transport: "ws",
+                }),
+              ),
             );
           }, connectTimeoutMs);
 
@@ -134,7 +146,7 @@ export const WebSocketTransportLive = (
               clearTimeout(timeout);
               resume(Effect.succeed(socket));
             },
-            { once: true }
+            { once: true },
           );
 
           const onFailure = () => {
@@ -146,9 +158,9 @@ export const WebSocketTransportLive = (
               Effect.fail(
                 new ConnectError({
                   message: "WebSocket connection failed",
-                  transport: "ws"
-                })
-              )
+                  transport: "ws",
+                }),
+              ),
             );
           };
 
@@ -173,12 +185,14 @@ export const WebSocketTransportLive = (
 
         const handleMessage = (raw: string): Effect.Effect<void> =>
           Effect.gen(function* () {
-            let payload: Record<string, unknown>;
-            try {
-              payload = JSON.parse(raw) as Record<string, unknown>;
-            } catch {
-              return;
-            }
+            const payload = yield* Effect.sync(() => {
+              try {
+                return JSON.parse(raw) as Record<string, unknown>;
+              } catch {
+                return undefined;
+              }
+            });
+            if (payload === undefined) return;
 
             const requestIdValue = payload.RequestId;
             const requestId =
@@ -188,15 +202,13 @@ export const WebSocketTransportLive = (
 
             const responseCodeValue = payload.ResponseCode;
             const responseCode =
-              typeof responseCodeValue === "number"
-                ? responseCodeValue
-                : Number(responseCodeValue);
+              typeof responseCodeValue === "number" ? responseCodeValue : Number(responseCodeValue);
 
             if (Number.isFinite(responseCode) && responseCode >= 200 && responseCode < 300) {
               yield* pending.resolve(requestId, {
                 body: payload.ResponseBody ?? undefined,
                 statusCode: responseCode,
-                requestId
+                requestId,
               });
             } else {
               const entry = yield* pending.get(requestId);
@@ -208,11 +220,11 @@ export const WebSocketTransportLive = (
                     verb: entry?.verb,
                     url: entry?.url,
                     requestId,
-                    details: payload.ResponseBody
+                    details: payload.ResponseBody,
                   })
                 : new DisconnectError({
                     message: "Remote request failed",
-                    transport: "ws"
+                    transport: "ws",
                   });
               yield* pending.reject(requestId, error);
             }
@@ -222,36 +234,43 @@ export const WebSocketTransportLive = (
 
         const messageLoop = (
           socket: WebSocket,
-          closeInfo: { code: number | undefined; reason: string | undefined; wasClean: boolean | undefined }
+          closeInfo: {
+            code: number | undefined;
+            reason: string | undefined;
+            wasClean: boolean | undefined;
+          },
         ): Effect.Effect<void, TransportError> =>
-          Effect.callback<void, TransportError>((resume) => {
-            const onMessage = (event: MessageEvent) => {
-              const raw = decodeMessage(event);
-              if (raw) {
-                Effect.runFork(handleMessage(raw));
-              }
-            };
+          Effect.gen(function* () {
+            const services = yield* Effect.context();
+            yield* Effect.callback<void, TransportError>((resume) => {
+              const onMessage = (event: MessageEvent) => {
+                const raw = decodeMessage(event);
+                if (raw) {
+                  Effect.runForkWith(services)(handleMessage(raw));
+                }
+              };
 
-            const onClose = (event: unknown) => {
-              socket.removeEventListener("message", onMessage);
-              if (event && typeof event === "object") {
-                const ce = event as { code?: unknown; reason?: unknown; wasClean?: unknown };
-                closeInfo.code = typeof ce.code === "number" ? ce.code : undefined;
-                closeInfo.reason = typeof ce.reason === "string" ? ce.reason : undefined;
-                closeInfo.wasClean = typeof ce.wasClean === "boolean" ? ce.wasClean : undefined;
-              }
-              resume(
-                Effect.fail(
-                  new DisconnectError({
-                    message: "WebSocket closed",
-                    transport: "ws"
-                  })
-                )
-              );
-            };
+              const onClose = (event: unknown) => {
+                socket.removeEventListener("message", onMessage);
+                if (event && typeof event === "object") {
+                  const ce = event as { code?: unknown; reason?: unknown; wasClean?: unknown };
+                  closeInfo.code = typeof ce.code === "number" ? ce.code : undefined;
+                  closeInfo.reason = typeof ce.reason === "string" ? ce.reason : undefined;
+                  closeInfo.wasClean = typeof ce.wasClean === "boolean" ? ce.wasClean : undefined;
+                }
+                resume(
+                  Effect.fail(
+                    new DisconnectError({
+                      message: "WebSocket closed",
+                      transport: "ws",
+                    }),
+                  ),
+                );
+              };
 
-            socket.addEventListener("message", onMessage);
-            socket.addEventListener("close", onClose as EventListener, { once: true });
+              socket.addEventListener("message", onMessage);
+              socket.addEventListener("close", onClose as EventListener, { once: true });
+            });
           });
 
         // ── Queue drainer ──────────────────────────────────────────────
@@ -278,39 +297,46 @@ export const WebSocketTransportLive = (
                   item.deferred,
                   new DisconnectError({
                     message: "WebSocket is not connected",
-                    transport: "ws"
-                  })
+                    transport: "ws",
+                  }),
                 );
                 continue;
               }
 
-              try {
-                socket.send(JSON.stringify(item.envelope));
-              } catch (err) {
+              const sendError = yield* Effect.sync(() => {
+                try {
+                  socket.send(JSON.stringify(item.envelope));
+                  return undefined;
+                } catch (err) {
+                  return err;
+                }
+              });
+              if (sendError !== undefined) {
                 yield* Deferred.fail(
                   item.deferred,
                   new DisconnectError({
                     message: "Failed to send WebSocket request",
                     transport: "ws",
-                    cause: err
-                  })
+                    cause: sendError,
+                  }),
                 );
                 continue;
               }
 
               // Register as pending and set up per-request timeout
-              const deferred = yield* pending.add(item.requestId, item.verb, item.url, Date.now(), item.timeoutMs);
+              const deferred = yield* pending.add(
+                item.requestId,
+                item.verb,
+                item.url,
+                Date.now(),
+                item.timeoutMs,
+              );
 
               if (remainingTimeoutMs !== undefined) {
                 yield* Effect.forkChild(
                   Effect.sleep(`${remainingTimeoutMs} millis`).pipe(
-                    Effect.andThen(() =>
-                      pending.reject(
-                        item.requestId,
-                        createTimeoutError(item)
-                      )
-                    )
-                  )
+                    Effect.andThen(() => pending.reject(item.requestId, createTimeoutError(item))),
+                  ),
                 );
               }
 
@@ -318,10 +344,11 @@ export const WebSocketTransportLive = (
               yield* Effect.forkChild(
                 Deferred.await(deferred).pipe(
                   Effect.matchEffect({
-                    onSuccess: (response: TransportResponse) => Deferred.succeed(item.deferred, response),
-                    onFailure: (error: TransportError) => Deferred.fail(item.deferred, error)
-                  })
-                )
+                    onSuccess: (response: TransportResponse) =>
+                      Deferred.succeed(item.deferred, response),
+                    onFailure: (error: TransportError) => Deferred.fail(item.deferred, error),
+                  }),
+                ),
               );
             }
           });
@@ -336,14 +363,24 @@ export const WebSocketTransportLive = (
           // Fire onReconnect if this is not the first connection
           const wasConnectedBefore = yield* Ref.get(hasConnectedBefore);
           if (wasConnectedBefore && onReconnect) {
-            try { onReconnect(); } catch { /* ignore hook errors */ }
+            yield* Effect.sync(() => {
+              try {
+                onReconnect();
+              } catch {
+                /* ignore hook errors */
+              }
+            });
           }
           yield* Ref.set(hasConnectedBefore, true);
 
-          const closeInfo: { code: number | undefined; reason: string | undefined; wasClean: boolean | undefined } = {
+          const closeInfo: {
+            code: number | undefined;
+            reason: string | undefined;
+            wasClean: boolean | undefined;
+          } = {
             code: undefined,
             reason: undefined,
-            wasClean: undefined
+            wasClean: undefined,
           };
 
           const sendPing = (data: string) =>
@@ -363,9 +400,9 @@ export const WebSocketTransportLive = (
             [
               pingIntervalMs > 0 ? heartbeat(sendPing, pingIntervalMs) : Effect.never,
               messageLoop(socket, closeInfo),
-              drainQueue(socket)
+              drainQueue(socket),
             ],
-            { concurrency: "unbounded" }
+            { concurrency: "unbounded" },
           ).pipe(
             Effect.catchIf(
               () => true,
@@ -377,43 +414,43 @@ export const WebSocketTransportLive = (
 
                   // Fire onDisconnect hook
                   if (onDisconnect) {
-                    try {
-                      onDisconnect({
-                        code: closeInfo.code,
-                        reason: closeInfo.reason ?? "WebSocket disconnected",
-                        wasClean: closeInfo.wasClean
-                      });
-                    } catch { /* ignore hook errors */ }
+                    yield* Effect.sync(() => {
+                      try {
+                        onDisconnect({
+                          code: closeInfo.code,
+                          reason: closeInfo.reason ?? "WebSocket disconnected",
+                          wasClean: closeInfo.wasClean,
+                        });
+                      } catch {
+                        /* ignore hook errors */
+                      }
+                    });
                   }
 
                   yield* pending.rejectAll(
                     new DisconnectError({
                       message: "WebSocket disconnected",
-                      transport: "ws"
-                    })
+                      transport: "ws",
+                    }),
                   );
-                  return yield* Effect.fail(
-                    new DisconnectError({
-                      message: "WebSocket disconnected",
-                      transport: "ws"
-                    })
-                  );
-                })
-            )
+                  return yield* new DisconnectError({
+                    message: "WebSocket disconnected",
+                    transport: "ws",
+                  });
+                }),
+            ),
           );
         });
 
-        const reconnectSchedule = Schedule.exponential(
-          `${reconnectInitialDelayMs} millis`,
-          reconnectBackoffFactor
-        ).pipe(
-          Schedule.either(Schedule.spaced(`${reconnectMaxDelayMs} millis`))
-        );
+        const reconnectSchedule = Schedule.min([
+          Schedule.exponential(`${reconnectInitialDelayMs} millis`, reconnectBackoffFactor),
+          Schedule.spaced(`${reconnectMaxDelayMs} millis`),
+        ]);
 
         const connectionLoop = autoReconnect
           ? Effect.retry(runConnection, {
               schedule: reconnectSchedule,
-              while: () => autoReconnect
+              while: () => autoReconnect,
             })
           : runConnection;
 
@@ -430,22 +467,18 @@ export const WebSocketTransportLive = (
             Effect.gen(function* () {
               const disposed = yield* Ref.get(disposedRef);
               if (disposed) {
-                return yield* Effect.fail(
-                  new DisconnectError({
-                    message: "Cannot send request on a disposed transport",
-                    transport: "ws"
-                  })
-                );
+                return yield* new DisconnectError({
+                  message: "Cannot send request on a disposed transport",
+                  transport: "ws",
+                });
               }
 
               const connected = yield* Ref.get(connectedRef);
               if (!connected && disconnectedBehavior === "reject") {
-                return yield* Effect.fail(
-                  new DisconnectError({
-                    message: "WebSocket is disconnected",
-                    transport: "ws"
-                  })
-                );
+                return yield* new DisconnectError({
+                  message: "WebSocket is disconnected",
+                  transport: "ws",
+                });
               }
 
               const requestId = yield* pending.nextId;
@@ -459,20 +492,25 @@ export const WebSocketTransportLive = (
                   RequestId: requestId,
                   Url: req.url,
                   Verb: req.verb,
-                  ...(req.body !== undefined ? { Body: req.body } : {})
-                }
+                  ...(req.body !== undefined ? { Body: req.body } : {}),
+                },
               };
 
               if (expiresAt !== undefined) {
                 yield* Effect.forkChild(
                   Effect.sleep(`${timeoutMs} millis`).pipe(
-                    Effect.andThen(() => Deferred.fail(deferred, createTimeoutError({
-                      requestId,
-                      timeoutMs,
-                      verb: req.verb,
-                      url: req.url
-                    })))
-                  )
+                    Effect.andThen(() =>
+                      Deferred.fail(
+                        deferred,
+                        createTimeoutError({
+                          requestId,
+                          timeoutMs,
+                          verb: req.verb,
+                          url: req.url,
+                        }),
+                      ),
+                    ),
+                  ),
                 );
               }
 
@@ -483,16 +521,14 @@ export const WebSocketTransportLive = (
                 verb: req.verb,
                 url: req.url,
                 timeoutMs,
-                expiresAt
+                expiresAt,
               });
 
               if (!offered) {
-                return yield* Effect.fail(
-                  new DisconnectError({
-                    message: `WebSocket queue limit reached (${maxQueueSize}); request rejected`,
-                    transport: "ws"
-                  })
-                );
+                return yield* new DisconnectError({
+                  message: `WebSocket queue limit reached (${maxQueueSize}); request rejected`,
+                  transport: "ws",
+                });
               }
 
               return yield* Deferred.await(deferred);
@@ -501,13 +537,15 @@ export const WebSocketTransportLive = (
           pendingRequests: Effect.gen(function* () {
             const now = Date.now();
             const entries = yield* pending.snapshot;
-            return entries.map((e): PendingRequestInfo => ({
-              requestId: e.requestId,
-              verb: e.verb,
-              url: e.url,
-              elapsedMs: now - e.startedAt,
-              timeoutMs: e.timeoutMs
-            }));
+            return entries.map(
+              (e): PendingRequestInfo => ({
+                requestId: e.requestId,
+                verb: e.verb,
+                url: e.url,
+                elapsedMs: now - e.startedAt,
+                timeoutMs: e.timeoutMs,
+              }),
+            );
           }),
 
           dispose: Effect.gen(function* () {
@@ -522,8 +560,8 @@ export const WebSocketTransportLive = (
             yield* pending.rejectAll(
               new DisconnectError({
                 message: "Transport disposed",
-                transport: "ws"
-              })
+                transport: "ws",
+              }),
             );
 
             const socket = yield* Ref.get(socketRef);
@@ -534,10 +572,10 @@ export const WebSocketTransportLive = (
               socket.close(1000, "Client disposed");
             }
             yield* Ref.set(socketRef, undefined);
-          })
+          }),
         };
-      })
+      }),
     ),
-    PendingRequestsLive
+    PendingRequestsLive,
   );
 };

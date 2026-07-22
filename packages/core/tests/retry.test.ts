@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "vitest";
 import { TransportRequestError, UnrealRC } from "../src/index.js";
 
 // ── Fetch mock helpers ────────────────────────────────────────────────
@@ -34,7 +34,7 @@ const createFetchMock = (responses: MockResponseEntry[]) => {
 
     return new Response(responseBody, {
       status,
-      headers: responseBody ? { "content-type": "application/json" } : {}
+      headers: responseBody ? { "content-type": "application/json" } : {},
     });
   };
 
@@ -51,15 +51,12 @@ afterEach(() => {
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
-const makeHttpClient = (
-  responses: MockResponseEntry[],
-  options: Record<string, unknown> = {}
-) => {
+const makeHttpClient = (responses: MockResponseEntry[], options: Record<string, unknown> = {}) => {
   const mock = createFetchMock(responses);
   const client = new UnrealRC({
     transport: "http",
     http: { baseUrl: "http://127.0.0.1:30010" },
-    ...options
+    ...options,
   } as ConstructorParameters<typeof UnrealRC>[0]);
   return { client, requests: mock.requests };
 };
@@ -71,12 +68,15 @@ describe("retry logic", () => {
     const { client, requests } = makeHttpClient(
       [
         { body: { error: "gateway" }, statusCode: 502 },
-        { body: { ReturnValue: 1 }, statusCode: 200 }
+        { body: { ReturnValue: 1 }, statusCode: 200 },
       ],
-      { retry: { maxAttempts: 3, delayMs: 0 } }
+      { retry: { maxAttempts: 3, delayMs: 0 } },
     );
 
-    const result = await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
+    const result = await client.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "Ping",
+    });
     expect(result.ReturnValue).toBe(1);
     expect(requests).toHaveLength(2);
   });
@@ -85,12 +85,15 @@ describe("retry logic", () => {
     const { client, requests } = makeHttpClient(
       [
         { body: { error: "busy" }, statusCode: 503 },
-        { body: { ReturnValue: 2 }, statusCode: 200 }
+        { body: { ReturnValue: 2 }, statusCode: 200 },
       ],
-      { retry: { maxAttempts: 2, delayMs: 0 } }
+      { retry: { maxAttempts: 2, delayMs: 0 } },
     );
 
-    const result = await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
+    const result = await client.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "Ping",
+    });
     expect(result.ReturnValue).toBe(2);
     expect(requests).toHaveLength(2);
   });
@@ -99,12 +102,15 @@ describe("retry logic", () => {
     const { client, requests } = makeHttpClient(
       [
         { body: { error: "timeout" }, statusCode: 504 },
-        { body: { ReturnValue: 3 }, statusCode: 200 }
+        { body: { ReturnValue: 3 }, statusCode: 200 },
       ],
-      { retry: { maxAttempts: 2, delayMs: 0 } }
+      { retry: { maxAttempts: 2, delayMs: 0 } },
     );
 
-    const result = await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
+    const result = await client.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "Ping",
+    });
     expect(result.ReturnValue).toBe(3);
     expect(requests).toHaveLength(2);
   });
@@ -113,13 +119,13 @@ describe("retry logic", () => {
     const { client, requests } = makeHttpClient(
       [
         { body: { error: "bad request" }, statusCode: 400 },
-        { body: { ReturnValue: 99 }, statusCode: 200 }
+        { body: { ReturnValue: 99 }, statusCode: 200 },
       ],
-      { retry: { maxAttempts: 3, delayMs: 0 } }
+      { retry: { maxAttempts: 3, delayMs: 0 } },
     );
 
     await expect(
-      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" })
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" }),
     ).rejects.toMatchObject({ statusCode: 400 });
     expect(requests).toHaveLength(1);
   });
@@ -128,13 +134,13 @@ describe("retry logic", () => {
     const { client, requests } = makeHttpClient(
       [
         { body: { error: "not found" }, statusCode: 404 },
-        { body: { ReturnValue: 99 }, statusCode: 200 }
+        { body: { ReturnValue: 99 }, statusCode: 200 },
       ],
-      { retry: { maxAttempts: 3, delayMs: 0 } }
+      { retry: { maxAttempts: 3, delayMs: 0 } },
     );
 
     await expect(
-      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" })
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" }),
     ).rejects.toMatchObject({ statusCode: 404 });
     expect(requests).toHaveLength(1);
   });
@@ -143,13 +149,13 @@ describe("retry logic", () => {
     const { client, requests } = makeHttpClient(
       [
         { body: { error: "internal" }, statusCode: 500 },
-        { body: { ReturnValue: 99 }, statusCode: 200 }
+        { body: { ReturnValue: 99 }, statusCode: 200 },
       ],
-      { retry: { maxAttempts: 3, delayMs: 0 } }
+      { retry: { maxAttempts: 3, delayMs: 0 } },
     );
 
     await expect(
-      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" })
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" }),
     ).rejects.toMatchObject({ statusCode: 500 });
     expect(requests).toHaveLength(1);
   });
@@ -159,16 +165,16 @@ describe("retry logic", () => {
       [
         { body: { error: "busy" }, statusCode: 503 },
         { body: { error: "busy" }, statusCode: 503 },
-        { body: { error: "busy" }, statusCode: 503 }
+        { body: { error: "busy" }, statusCode: 503 },
       ],
-      { retry: { maxAttempts: 3, delayMs: 0 } }
+      { retry: { maxAttempts: 3, delayMs: 0 } },
     );
 
     await expect(
-      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" })
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" }),
     ).rejects.toMatchObject({
       kind: "http_status",
-      statusCode: 503
+      statusCode: 503,
     });
     expect(requests).toHaveLength(3);
   });
@@ -177,13 +183,13 @@ describe("retry logic", () => {
     const { client, requests } = makeHttpClient(
       [
         { body: { error: "busy" }, statusCode: 503 },
-        { body: { ReturnValue: 99 }, statusCode: 200 }
+        { body: { ReturnValue: 99 }, statusCode: 200 },
       ],
-      { retry: { maxAttempts: 1, delayMs: 0 } }
+      { retry: { maxAttempts: 1, delayMs: 0 } },
     );
 
     await expect(
-      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" })
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" }),
     ).rejects.toMatchObject({ statusCode: 503 });
     expect(requests).toHaveLength(1);
   });
@@ -192,13 +198,13 @@ describe("retry logic", () => {
     const { client, requests } = makeHttpClient(
       [
         { body: { error: "busy" }, statusCode: 503 },
-        { body: { ReturnValue: 99 }, statusCode: 200 }
+        { body: { ReturnValue: 99 }, statusCode: 200 },
       ],
-      { retry: false }
+      { retry: false },
     );
 
     await expect(
-      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" })
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" }),
     ).rejects.toMatchObject({ statusCode: 503 });
     expect(requests).toHaveLength(1);
   });
@@ -207,13 +213,13 @@ describe("retry logic", () => {
     const { client, requests } = makeHttpClient(
       [
         { body: { error: "busy" }, statusCode: 503 },
-        { body: { ReturnValue: 99 }, statusCode: 200 }
+        { body: { ReturnValue: 99 }, statusCode: 200 },
       ],
-      { retry: { maxAttempts: 3, delayMs: 0 } }
+      { retry: { maxAttempts: 3, delayMs: 0 } },
     );
 
     await expect(
-      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping", retry: false })
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping", retry: false }),
     ).rejects.toMatchObject({ statusCode: 503 });
     expect(requests).toHaveLength(1);
   });
@@ -223,15 +229,15 @@ describe("retry logic", () => {
       [
         { body: { error: "busy" }, statusCode: 503 },
         { body: { error: "busy" }, statusCode: 503 },
-        { body: { ReturnValue: 10 }, statusCode: 200 }
+        { body: { ReturnValue: 10 }, statusCode: 200 },
       ],
-      { retry: { maxAttempts: 2, delayMs: 0 } }
+      { retry: { maxAttempts: 2, delayMs: 0 } },
     );
 
     const result = await client.call({
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "Ping",
-      retry: { maxAttempts: 3, delayMs: 0 }
+      retry: { maxAttempts: 3, delayMs: 0 },
     });
 
     expect(result.ReturnValue).toBe(10);
@@ -240,14 +246,14 @@ describe("retry logic", () => {
 
   test("retries network-level fetch errors (connection refused)", async () => {
     const { client, requests } = makeHttpClient(
-      [
-        new TypeError("fetch failed"),
-        { body: { ReturnValue: 77 }, statusCode: 200 }
-      ],
-      { retry: { maxAttempts: 2, delayMs: 0 } }
+      [new TypeError("fetch failed"), { body: { ReturnValue: 77 }, statusCode: 200 }],
+      { retry: { maxAttempts: 2, delayMs: 0 } },
     );
 
-    const result = await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
+    const result = await client.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "Ping",
+    });
     expect(result.ReturnValue).toBe(77);
     expect(requests).toHaveLength(2);
   });
@@ -260,9 +266,9 @@ describe("retry logic", () => {
         { body: { error: "busy" }, statusCode: 503 },
         { body: { Name: "Actor" }, statusCode: 200 },
         { body: { error: "busy" }, statusCode: 503 },
-        { body: { Counter: 42 }, statusCode: 200 }
+        { body: { Counter: 42 }, statusCode: 200 },
       ],
-      { retry: { maxAttempts: 2, delayMs: 0 } }
+      { retry: { maxAttempts: 2, delayMs: 0 } },
     );
 
     const info = await client.info();
@@ -271,7 +277,10 @@ describe("retry logic", () => {
     const desc = await client.describe({ objectPath: "/Game/Maps/Main.Main:Actor" });
     expect(desc.Name).toBe("Actor");
 
-    const value = await client.getProperty<number>({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter" });
+    const value = await client.getProperty<number>({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      propertyName: "Counter",
+    });
     expect(value).toBe(42);
 
     expect(requests).toHaveLength(6);
@@ -281,12 +290,15 @@ describe("retry logic", () => {
     const { client, requests } = makeHttpClient(
       [
         { body: { error: "busy" }, statusCode: 503 },
-        { body: { ReturnValue: 5 }, statusCode: 200 }
+        { body: { ReturnValue: 5 }, statusCode: 200 },
       ],
-      { retry: true }
+      { retry: true },
     );
 
-    const result = await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
+    const result = await client.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "Ping",
+    });
     expect(result.ReturnValue).toBe(5);
     expect(requests).toHaveLength(2);
   });
@@ -295,18 +307,21 @@ describe("retry logic", () => {
     const { client, requests } = makeHttpClient(
       [
         { body: { error: "not found" }, statusCode: 404 },
-        { body: { ReturnValue: 8 }, statusCode: 200 }
+        { body: { ReturnValue: 8 }, statusCode: 200 },
       ],
       {
         retry: {
           maxAttempts: 2,
           delayMs: 0,
-          shouldRetry: () => true
-        }
-      }
+          shouldRetry: () => true,
+        },
+      },
     );
 
-    const result = await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
+    const result = await client.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "Ping",
+    });
     expect(result.ReturnValue).toBe(8);
     expect(requests).toHaveLength(2);
   });
@@ -315,19 +330,19 @@ describe("retry logic", () => {
     const { client, requests } = makeHttpClient(
       [
         { body: { error: "busy" }, statusCode: 503 },
-        { body: { ReturnValue: 99 }, statusCode: 200 }
+        { body: { ReturnValue: 99 }, statusCode: 200 },
       ],
       {
         retry: {
           maxAttempts: 3,
           delayMs: 0,
-          shouldRetry: () => false
-        }
-      }
+          shouldRetry: () => false,
+        },
+      },
     );
 
     await expect(
-      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" })
+      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" }),
     ).rejects.toMatchObject({ statusCode: 503 });
     expect(requests).toHaveLength(1);
   });

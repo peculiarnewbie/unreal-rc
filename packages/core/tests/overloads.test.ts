@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "vitest";
 import {
   BatchBuilder,
   UnrealRC,
   buildCallRequest,
   type BatchRequestItem,
   type ObjectCallRequest,
-  type ObjectPropertyRequest
+  type ObjectPropertyRequest,
 } from "../src/index.js";
 
 // ── Fetch mock helpers ────────────────────────────────────────────────
@@ -41,7 +41,7 @@ const createFetchMock = (responses: MockResponseEntry[]) => {
 
     return new Response(responseBody, {
       status,
-      headers: responseBody ? { "content-type": "application/json" } : {}
+      headers: responseBody ? { "content-type": "application/json" } : {},
     });
   };
 
@@ -59,7 +59,7 @@ const makeHttpClient = (responses: MockResponseEntry[]) => {
   const client = new UnrealRC({
     transport: "http",
     http: { baseUrl: "http://127.0.0.1:30010" },
-    validateResponses: false
+    validateResponses: false,
   } as ConstructorParameters<typeof UnrealRC>[0]);
   return { client, requests: mock.requests };
 };
@@ -74,7 +74,7 @@ describe("client method argument types", () => {
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "DoThing",
       parameters: { Delta: 5 },
-      transaction: true
+      transaction: true,
     });
 
     expect(requests[0]?.url).toBe("http://127.0.0.1:30010/remote/object/call");
@@ -111,7 +111,7 @@ describe("client method argument types", () => {
     await client.setProperty({
       objectPath: "/Game/Maps/Main.Main:Actor",
       propertyName: "Counter",
-      propertyValue: 42
+      propertyValue: 42,
     });
 
     expect(requests[0]?.url).toBe("http://127.0.0.1:30010/remote/object/property");
@@ -141,7 +141,9 @@ describe("client method argument types", () => {
   });
 
   test("thumbnail sends correct body and url", async () => {
-    const { client, requests } = makeHttpClient([{ body: "data:image/png;base64,abc", statusCode: 200 }]);
+    const { client, requests } = makeHttpClient([
+      { body: "data:image/png;base64,abc", statusCode: 200 },
+    ]);
 
     await client.thumbnail({ objectPath: "/Game/Maps/Main.Main:Actor" });
 
@@ -159,7 +161,7 @@ describe("buildCallRequest", () => {
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "DoThing",
       parameters: { Delta: 5 },
-      transaction: true
+      transaction: true,
     });
 
     expect(result.objectPath).toBe("/Game/Maps/Main.Main:Actor");
@@ -176,7 +178,7 @@ describe("BatchBuilder argument types", () => {
     b.call({
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "DoThing",
-      parameters: { Delta: 5 }
+      parameters: { Delta: 5 },
     });
 
     const requests = (b as { getRequests(): BatchRequestItem[] }).getRequests();
@@ -196,7 +198,7 @@ describe("BatchBuilder argument types", () => {
     b.setProperty({
       objectPath: "/Game/Maps/Main.Main:Actor",
       propertyName: "Counter",
-      propertyValue: 42
+      propertyValue: 42,
     });
 
     const requests = (b as { getRequests(): BatchRequestItem[] }).getRequests();

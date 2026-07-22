@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import type { CallArgs, GetPropertyArgs, SetPropertyArgs } from "../../src/index.js";
 import {
   acquireFixture,
@@ -9,7 +9,7 @@ import {
   resolveFixtureContract,
   resolveLaunchOptions,
   waitForRemoteControlHttp,
-  waitForRemoteControlWs
+  waitForRemoteControlWs,
 } from "./setup.js";
 
 const wsRoundtripTest = process.env.UNREAL_E2E === "1" ? test : test.skip;
@@ -24,7 +24,7 @@ wsRoundtripTest(
     let currentStep = "launch fixture project";
     const requestOptions = {
       timeoutMs: launchOptions.requestTimeoutMs,
-      retry: false
+      retry: false,
     } as const;
 
     try {
@@ -34,24 +34,37 @@ wsRoundtripTest(
       await waitForRemoteControlWs(handle, launchOptions);
 
       currentStep = `reset ${contract.propertyName} over HTTP`;
-      await setCounter(clients.http, { objectPath: contract.objectPath, propertyName: contract.propertyName, propertyValue: contract.baselineValue, ...requestOptions });
+      await setCounter(clients.http, {
+        objectPath: contract.objectPath,
+        propertyName: contract.propertyName,
+        propertyValue: contract.baselineValue,
+        ...requestOptions,
+      });
 
       currentStep = `verify ${contract.propertyName} baseline over WebSocket`;
-      expect(await getCounter(clients.ws, { objectPath: contract.objectPath, propertyName: contract.propertyName, ...requestOptions })).toBe(
-        contract.baselineValue
-      );
+      expect(
+        await getCounter(clients.ws, {
+          objectPath: contract.objectPath,
+          propertyName: contract.propertyName,
+          ...requestOptions,
+        }),
+      ).toBe(contract.baselineValue);
 
       currentStep = `set ${contract.propertyName}=${contract.wsWriteValue} over WebSocket`;
       await setCounter(clients.ws, {
         objectPath: contract.objectPath,
         propertyName: contract.propertyName,
         propertyValue: contract.wsWriteValue,
-        ...requestOptions
+        ...requestOptions,
       });
       currentStep = `verify ${contract.propertyName}=${contract.wsWriteValue} over WebSocket`;
-      expect(await getCounter(clients.ws, { objectPath: contract.objectPath, propertyName: contract.propertyName, ...requestOptions })).toBe(
-        contract.wsWriteValue
-      );
+      expect(
+        await getCounter(clients.ws, {
+          objectPath: contract.objectPath,
+          propertyName: contract.propertyName,
+          ...requestOptions,
+        }),
+      ).toBe(contract.wsWriteValue);
 
       const wsExpected = contract.wsWriteValue + contract.wsCallDelta;
       currentStep = `${contract.functionName}(${contract.wsCallDelta}) over WebSocket`;
@@ -59,16 +72,20 @@ wsRoundtripTest(
         objectPath: contract.objectPath,
         functionName: contract.functionName,
         parameters: {
-          [contract.functionArgumentName]: contract.wsCallDelta
+          [contract.functionArgumentName]: contract.wsCallDelta,
         },
-        ...requestOptions
+        ...requestOptions,
       });
 
       expect(wsCall.ReturnValue).toBe(wsExpected);
       currentStep = `verify ${contract.propertyName}=${wsExpected} over WebSocket`;
-      expect(await getCounter(clients.ws, { objectPath: contract.objectPath, propertyName: contract.propertyName, ...requestOptions })).toBe(
-        wsExpected
-      );
+      expect(
+        await getCounter(clients.ws, {
+          objectPath: contract.objectPath,
+          propertyName: contract.propertyName,
+          ...requestOptions,
+        }),
+      ).toBe(wsExpected);
     } catch (error) {
       throw new Error(
         formatE2eFailure({
@@ -77,8 +94,8 @@ wsRoundtripTest(
           handle,
           diagnostics: clients.diagnostics,
           contract,
-          launchOptions
-        })
+          launchOptions,
+        }),
       );
     } finally {
       try {
@@ -87,7 +104,7 @@ wsRoundtripTest(
           propertyName: contract.propertyName,
           propertyValue: contract.baselineValue,
           timeoutMs: launchOptions.requestTimeoutMs,
-          retry: false
+          retry: false,
         });
       } catch {}
 
@@ -95,12 +112,12 @@ wsRoundtripTest(
       await releaseFixture();
     }
   },
-  getBootTimeoutMs() + 60_000
+  getBootTimeoutMs() + 60_000,
 );
 
 const getCounter = async (
   client: { getProperty<T>(args: GetPropertyArgs): Promise<T | undefined> },
-  args: GetPropertyArgs
+  args: GetPropertyArgs,
 ): Promise<number> => {
   const value = await client.getProperty<number>(args);
 
@@ -110,7 +127,7 @@ const getCounter = async (
 
 const setCounter = async (
   client: { setProperty(args: SetPropertyArgs): Promise<unknown> },
-  args: SetPropertyArgs
+  args: SetPropertyArgs,
 ): Promise<void> => {
   await client.setProperty(args);
 };

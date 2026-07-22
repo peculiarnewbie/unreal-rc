@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "vitest";
 import { Effect, Layer, Schema } from "effect";
 import {
   BatchBuilder,
@@ -9,7 +9,7 @@ import {
   buildDescribeRequest,
   buildPropertyRequest,
   type HealthStatus,
-  type PingResult
+  type PingResult,
 } from "../src/index.js";
 import { makeFullLayer } from "../src/internal/runtime.js";
 import {
@@ -18,7 +18,7 @@ import {
   HttpStatusError,
   DecodeError,
   UnrealRCService,
-  UnrealRCTest
+  UnrealRCTest,
 } from "../src/effect.js";
 
 // ── Fetch mock helpers ────────────────────────────────────────────────
@@ -54,7 +54,7 @@ const createFetchMock = (responses: MockResponseEntry[]) => {
 
     return new Response(responseBody, {
       status,
-      headers: responseBody ? { "content-type": "application/json" } : {}
+      headers: responseBody ? { "content-type": "application/json" } : {},
     });
   };
 
@@ -73,15 +73,12 @@ afterEach(() => {
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
-const makeHttpClient = (
-  responses: MockResponseEntry[],
-  options: Record<string, unknown> = {}
-) => {
+const makeHttpClient = (responses: MockResponseEntry[], options: Record<string, unknown> = {}) => {
   const mock = createFetchMock(responses);
   const client = new UnrealRC({
     transport: "http",
     http: { baseUrl: "http://127.0.0.1:30010" },
-    ...options
+    ...options,
   } as ConstructorParameters<typeof UnrealRC>[0]);
   return { client, requests: mock.requests };
 };
@@ -156,21 +153,22 @@ const getHttpPayloads = (sentPayloads: string[]) =>
         return undefined;
       }
     })
-    .filter((payload): payload is { MessageName?: string } => payload !== undefined && payload.MessageName === "http");
+    .filter(
+      (payload): payload is { MessageName?: string } =>
+        payload !== undefined && payload.MessageName === "http",
+    );
 
 // ── Client tests ──────────────────────────────────────────────────────
 
 describe("UnrealRC client", () => {
   test("builds call payloads with transaction option", async () => {
-    const { client, requests } = makeHttpClient([
-      { body: { ReturnValue: 123 }, statusCode: 200 }
-    ]);
+    const { client, requests } = makeHttpClient([{ body: { ReturnValue: 123 }, statusCode: 200 }]);
 
     const response = await client.call({
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "IncrementCounter",
       parameters: { Delta: 5 },
-      transaction: true
+      transaction: true,
     });
 
     expect(response.ReturnValue).toBe(123);
@@ -178,52 +176,54 @@ describe("UnrealRC client", () => {
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "IncrementCounter",
       parameters: { Delta: 5 },
-      generateTransaction: true
+      generateTransaction: true,
     });
   });
 
   test("preserves an explicitly disabled call transaction", async () => {
-    const { client, requests } = makeHttpClient([
-      { body: { ReturnValue: 123 }, statusCode: 200 }
-    ]);
+    const { client, requests } = makeHttpClient([{ body: { ReturnValue: 123 }, statusCode: 200 }]);
 
     await client.call({
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "ReadWithoutTransaction",
-      transaction: false
+      transaction: false,
     });
 
     expect(requests[0]?.body).toMatchObject({
       functionName: "ReadWithoutTransaction",
-      generateTransaction: false
+      generateTransaction: false,
     });
   });
 
   test("normalizes single-output call responses onto ReturnValue", async () => {
-    const { client } = makeHttpClient([
-      { body: { OutCounter: 123 }, statusCode: 200 }
-    ]);
+    const { client } = makeHttpClient([{ body: { OutCounter: 123 }, statusCode: 200 }]);
 
     const response = await client.call({
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "IncrementCounter",
-      parameters: { Delta: 5 }
+      parameters: { Delta: 5 },
     });
 
     expect(response).toEqual({
       OutCounter: 123,
-      ReturnValue: 123
+      ReturnValue: 123,
     });
   });
 
   test("parses property responses using property name then ReturnValue", async () => {
     const { client } = makeHttpClient([
       { body: { Counter: 9 }, statusCode: 200 },
-      { body: { ReturnValue: 33 }, statusCode: 200 }
+      { body: { ReturnValue: 33 }, statusCode: 200 },
     ]);
 
-    const direct = await client.getProperty<number>({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter" });
-    const fallback = await client.getProperty<number>({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Missing" });
+    const direct = await client.getProperty<number>({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      propertyName: "Counter",
+    });
+    const fallback = await client.getProperty<number>({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      propertyName: "Missing",
+    });
 
     expect(direct).toBe(9);
     expect(fallback).toBe(33);
@@ -232,26 +232,37 @@ describe("UnrealRC client", () => {
   test("defaults setProperty access and supports transaction access", async () => {
     const { client, requests } = makeHttpClient([
       { body: undefined, statusCode: 200 },
-      { body: { ReturnValue: null }, statusCode: 200 }
+      { body: { ReturnValue: null }, statusCode: 200 },
     ]);
 
-    await expect(client.setProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter", propertyValue: 1 })).resolves.toEqual({});
     await expect(
-      client.setProperty({ objectPath: "/Game/Maps/Main.Main:Actor", propertyName: "Counter", propertyValue: 2, transaction: true })
+      client.setProperty({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        propertyName: "Counter",
+        propertyValue: 1,
+      }),
+    ).resolves.toEqual({});
+    await expect(
+      client.setProperty({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        propertyName: "Counter",
+        propertyValue: 2,
+        transaction: true,
+      }),
     ).resolves.toEqual({ ReturnValue: null });
 
     expect(requests[0]?.body).toEqual({
       objectPath: "/Game/Maps/Main.Main:Actor",
       propertyName: "Counter",
       propertyValue: { Counter: 1 },
-      access: "WRITE_ACCESS"
+      access: "WRITE_ACCESS",
     });
 
     expect(requests[1]?.body).toEqual({
       objectPath: "/Game/Maps/Main.Main:Actor",
       propertyName: "Counter",
       propertyValue: { Counter: 2 },
-      access: "WRITE_TRANSACTION_ACCESS"
+      access: "WRITE_TRANSACTION_ACCESS",
     });
   });
 
@@ -263,7 +274,7 @@ describe("UnrealRC client", () => {
     const { client } = makeHttpClient(
       [
         { body: { ReturnValue: { secret: "ok" } }, statusCode: 200 },
-        { body: { secret: "fail" }, statusCode: 503 }
+        { body: { secret: "fail" }, statusCode: 503 },
       ],
       {
         onRequest: (event: unknown) => {
@@ -277,13 +288,21 @@ describe("UnrealRC client", () => {
         },
         redactPayload: (_payload: unknown, context: { phase: string }) => {
           return `[redacted:${context.phase}]`;
-        }
-      }
+        },
+      },
     );
 
-    await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "DoThing", parameters: { secret: "request" } });
+    await client.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "DoThing",
+      parameters: { secret: "request" },
+    });
     await expect(
-      client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "DoThing", parameters: { secret: "request" } })
+      client.call({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        functionName: "DoThing",
+        parameters: { secret: "request" },
+      }),
     ).rejects.toBeInstanceOf(TransportRequestError);
 
     expect(requestLogs).toHaveLength(2);
@@ -293,19 +312,19 @@ describe("UnrealRC client", () => {
       transport: "http",
       verb: "PUT",
       url: "/remote/object/call",
-      body: "[redacted:request]"
+      body: "[redacted:request]",
     });
     expect(responseLogs[0]).toMatchObject({
       transport: "http",
       body: "[redacted:response]",
       requestBody: "[redacted:request]",
-      statusCode: 200
+      statusCode: 200,
     });
     expect(errorLogs[0]).toMatchObject({
       transport: "http",
       body: "[redacted:request]",
       errorBody: "[redacted:error]",
-      statusCode: 503
+      statusCode: 503,
     });
   });
 
@@ -314,16 +333,19 @@ describe("UnrealRC client", () => {
       [
         { body: { error: "busy" }, statusCode: 503 },
         { body: { ReturnValue: 42 }, statusCode: 200 },
-        { body: { error: "busy" }, statusCode: 503 }
+        { body: { error: "busy" }, statusCode: 503 },
       ],
-      { retry: { maxAttempts: 2, delayMs: 0 } }
+      { retry: { maxAttempts: 2, delayMs: 0 } },
     );
 
-    const success = await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "GetValue" });
+    const success = await client.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "GetValue",
+    });
 
     await expect(client.info({ retry: false })).rejects.toMatchObject({
       kind: "http_status",
-      statusCode: 503
+      statusCode: 503,
     });
     expect(success.ReturnValue).toBe(42);
     expect(requests).toHaveLength(3);
@@ -335,11 +357,11 @@ describe("UnrealRC client", () => {
         body: {
           Responses: [
             { RequestId: 2, ResponseCode: 404, ResponseBody: { error: "missing" } },
-            { RequestId: 0, ResponseCode: 200, ResponseBody: { ReturnValue: true } }
-          ]
+            { RequestId: 0, ResponseCode: 200, ResponseBody: { ReturnValue: true } },
+          ],
         },
-        statusCode: 200
-      }
+        statusCode: 200,
+      },
     ]);
 
     const results = await client.batch((builder) => {
@@ -359,9 +381,9 @@ describe("UnrealRC client", () => {
           Verb: "PUT",
           Body: {
             objectPath: "/Game/Maps/Main.Main:Actor",
-            functionName: "ResetFixtures"
-          }
-        }
+            functionName: "ResetFixtures",
+          },
+        },
       },
       {
         requestId: 1,
@@ -372,9 +394,9 @@ describe("UnrealRC client", () => {
           URL: "/remote/object/describe",
           Verb: "PUT",
           Body: {
-            objectPath: "/Game/Maps/Main.Main:Actor"
-          }
-        }
+            objectPath: "/Game/Maps/Main.Main:Actor",
+          },
+        },
       },
       {
         requestId: 2,
@@ -387,18 +409,17 @@ describe("UnrealRC client", () => {
           Body: {
             objectPath: "/Game/Maps/Main.Main:Actor",
             propertyName: "Missing",
-            access: "READ_ACCESS"
-          }
-        }
-      }
+            access: "READ_ACCESS",
+          },
+        },
+      },
     ]);
   });
 
   test("skips response schema parsing when validateResponses is false", async () => {
-    const { client } = makeHttpClient(
-      [{ body: 123, statusCode: 200 }],
-      { validateResponses: false }
-    );
+    const { client } = makeHttpClient([{ body: 123, statusCode: 200 }], {
+      validateResponses: false,
+    });
 
     const raw = await client.info();
 
@@ -413,9 +434,7 @@ describe("UnrealRC client", () => {
   });
 
   test("normalizes HTTP transport errors with metadata", async () => {
-    const { client } = makeHttpClient([
-      { body: { message: "busy" }, statusCode: 503 }
-    ]);
+    const { client } = makeHttpClient([{ body: { message: "busy" }, statusCode: 503 }]);
 
     await expect(client.info()).rejects.toMatchObject({
       kind: "http_status",
@@ -423,7 +442,7 @@ describe("UnrealRC client", () => {
       verb: "GET",
       url: "/remote/info",
       statusCode: 503,
-      details: { message: "busy" }
+      details: { message: "busy" },
     });
   });
 
@@ -437,7 +456,7 @@ describe("UnrealRC client", () => {
 
       return new Response(JSON.stringify({ ReturnValue: true }), {
         status: 200,
-        headers: { "content-type": "application/json" }
+        headers: { "content-type": "application/json" },
       });
     };
 
@@ -447,9 +466,9 @@ describe("UnrealRC client", () => {
         baseUrl: "http://127.0.0.1:30010",
         headers: {
           authorization: "Bearer secret",
-          "x-trace-id": "abc123"
-        }
-      }
+          "x-trace-id": "abc123",
+        },
+      },
     });
 
     await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
@@ -458,7 +477,7 @@ describe("UnrealRC client", () => {
     expect(requestHeaders).toMatchObject({
       authorization: "Bearer secret",
       "x-trace-id": "abc123",
-      "content-type": "application/json"
+      "content-type": "application/json",
     });
   });
 
@@ -470,7 +489,7 @@ describe("UnrealRC client", () => {
 
       return new Response(JSON.stringify({ ReturnValue: true }), {
         status: 200,
-        headers: { "content-type": "application/json" }
+        headers: { "content-type": "application/json" },
       });
     };
 
@@ -478,8 +497,8 @@ describe("UnrealRC client", () => {
       transport: "http",
       passphrase: "smh ue, this is stupid",
       http: {
-        baseUrl: "http://127.0.0.1:30010"
-      }
+        baseUrl: "http://127.0.0.1:30010",
+      },
     } as ConstructorParameters<typeof UnrealRC>[0]);
 
     await client.batch((builder) => {
@@ -488,7 +507,7 @@ describe("UnrealRC client", () => {
 
     expect(requestHeaders).toMatchObject({
       Passphrase: "smh ue, this is stupid",
-      "content-type": "application/json"
+      "content-type": "application/json",
     });
   });
 
@@ -500,21 +519,21 @@ describe("UnrealRC client", () => {
 
       return new Response(JSON.stringify({ ReturnValue: true }), {
         status: 200,
-        headers: { "content-type": "application/json" }
+        headers: { "content-type": "application/json" },
       });
     };
 
     const client = new UnrealRC({
       transport: "http",
       http: {
-        baseUrl: "http://127.0.0.1:30010"
-      }
+        baseUrl: "http://127.0.0.1:30010",
+      },
     });
 
     await client.info();
 
     expect(requestHeaders).toMatchObject({
-      Passphrase: "smh ue, this is stupid"
+      Passphrase: "smh ue, this is stupid",
     });
   });
 
@@ -522,18 +541,16 @@ describe("UnrealRC client", () => {
     const { sentPayloads } = installMockWebSocket();
     const client = new UnrealRC({
       transport: "ws",
-      ws: { connectTimeoutMs: 10_000 }
+      ws: { connectTimeoutMs: 10_000 },
     });
 
     const start = Date.now();
 
-    await expect(
-      client.info({ timeoutMs: 50, retry: false })
-    ).rejects.toMatchObject({
+    await expect(client.info({ timeoutMs: 50, retry: false })).rejects.toMatchObject({
       kind: "timeout",
       transport: "ws",
       verb: "GET",
-      url: "/remote/info"
+      url: "/remote/info",
     });
 
     expect(Date.now() - start).toBeLessThan(500);
@@ -546,19 +563,17 @@ describe("UnrealRC client", () => {
     const { sentPayloads } = installMockWebSocket({ openDelayMs: 100 });
     const client = new UnrealRC({
       transport: "ws",
-      ws: { connectTimeoutMs: 10_000, autoReconnect: false }
+      ws: { connectTimeoutMs: 10_000, autoReconnect: false },
     });
 
-    await expect(
-      client.info({ timeoutMs: 25, retry: false })
-    ).rejects.toMatchObject({
+    await expect(client.info({ timeoutMs: 25, retry: false })).rejects.toMatchObject({
       kind: "timeout",
       transport: "ws",
       verb: "GET",
-      url: "/remote/info"
+      url: "/remote/info",
     });
 
-    await Bun.sleep(150);
+    await new Promise((resolve) => setTimeout(resolve, 150));
     expect(getHttpPayloads(sentPayloads)).toHaveLength(0);
 
     await client.dispose();
@@ -580,47 +595,61 @@ describe("BatchBuilder and protocol builders", () => {
           RequestId: 0,
           URL: "/remote/object/describe",
           Verb: "PUT",
-          Body: { objectPath: "/Game/Maps/Main.Main:Actor" }
+          Body: { objectPath: "/Game/Maps/Main.Main:Actor" },
         },
         {
           RequestId: 1,
           URL: "/remote/info",
-          Verb: "GET"
-        }
-      ]
+          Verb: "GET",
+        },
+      ],
     });
   });
 
   test("exposes pure protocol request builders", () => {
     const builder = new BatchBuilder();
-    builder.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Increment", parameters: { Delta: 1 }, transaction: true });
-
-    expect(buildCallRequest({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Increment", parameters: { Delta: 1 }, transaction: true })).toEqual({
+    builder.call({
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "Increment",
       parameters: { Delta: 1 },
-      generateTransaction: true
+      transaction: true,
     });
-    expect(buildPropertyRequest("/Game/Maps/Main.Main:Actor", { propertyName: "Counter" })).toEqual({
+
+    expect(
+      buildCallRequest({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        functionName: "Increment",
+        parameters: { Delta: 1 },
+        transaction: true,
+      }),
+    ).toEqual({
       objectPath: "/Game/Maps/Main.Main:Actor",
-      propertyName: "Counter",
-      access: "READ_ACCESS"
+      functionName: "Increment",
+      parameters: { Delta: 1 },
+      generateTransaction: true,
     });
+    expect(buildPropertyRequest("/Game/Maps/Main.Main:Actor", { propertyName: "Counter" })).toEqual(
+      {
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        propertyName: "Counter",
+        access: "READ_ACCESS",
+      },
+    );
     expect(
       buildPropertyRequest("/Game/Maps/Main.Main:Actor", {
         propertyName: "Counter",
-        propertyValue: 3
-      })
+        propertyValue: 3,
+      }),
     ).toEqual({
       objectPath: "/Game/Maps/Main.Main:Actor",
       propertyName: "Counter",
       propertyValue: {
-        Counter: 3
+        Counter: 3,
       },
-      access: "WRITE_ACCESS"
+      access: "WRITE_ACCESS",
     });
     expect(buildDescribeRequest("/Game/Maps/Main.Main:Actor")).toEqual({
-      objectPath: "/Game/Maps/Main.Main:Actor"
+      objectPath: "/Game/Maps/Main.Main:Actor",
     });
     expect(buildBatchRequest(builder)).toEqual({
       Requests: [
@@ -632,10 +661,10 @@ describe("BatchBuilder and protocol builders", () => {
             objectPath: "/Game/Maps/Main.Main:Actor",
             functionName: "Increment",
             parameters: { Delta: 1 },
-            generateTransaction: true
-          }
-        }
-      ]
+            generateTransaction: true,
+          },
+        },
+      ],
     });
   });
 });
@@ -644,9 +673,7 @@ describe("BatchBuilder and protocol builders", () => {
 
 describe("ping", () => {
   test("returns reachable true with latency on success", async () => {
-    const { client } = makeHttpClient([
-      { body: {}, statusCode: 200 }
-    ]);
+    const { client } = makeHttpClient([{ body: {}, statusCode: 200 }]);
 
     const result = await client.ping();
 
@@ -665,9 +692,7 @@ describe("ping", () => {
   });
 
   test("returns reachable false on HTTP error status", async () => {
-    const { client } = makeHttpClient([
-      { body: { message: "busy" }, statusCode: 503 }
-    ]);
+    const { client } = makeHttpClient([{ body: { message: "busy" }, statusCode: 503 }]);
 
     const result = await client.ping();
 
@@ -678,14 +703,17 @@ describe("ping", () => {
   test("does not fire hooks", async () => {
     const hookCalls: string[] = [];
 
-    const { client } = makeHttpClient(
-      [{ body: {}, statusCode: 200 }],
-      {
-        onRequest: () => { hookCalls.push("request"); },
-        onResponse: () => { hookCalls.push("response"); },
-        onError: () => { hookCalls.push("error"); }
-      }
-    );
+    const { client } = makeHttpClient([{ body: {}, statusCode: 200 }], {
+      onRequest: () => {
+        hookCalls.push("request");
+      },
+      onResponse: () => {
+        hookCalls.push("response");
+      },
+      onError: () => {
+        hookCalls.push("error");
+      },
+    });
 
     await client.ping();
 
@@ -693,9 +721,7 @@ describe("ping", () => {
   });
 
   test("respects custom timeout", async () => {
-    const { client, requests } = makeHttpClient([
-      { body: {}, statusCode: 200 }
-    ]);
+    const { client, requests } = makeHttpClient([{ body: {}, statusCode: 200 }]);
 
     const result = await client.ping({ timeoutMs: 500 });
 
@@ -710,11 +736,7 @@ describe("ping", () => {
     const { client: client2 } = makeHttpClient([new Error("ECONNREFUSED")]);
     const { client: client3 } = makeHttpClient([{ body: {}, statusCode: 500 }]);
 
-    const [r1, r2, r3] = await Promise.all([
-      client1.ping(),
-      client2.ping(),
-      client3.ping()
-    ]);
+    const [r1, r2, r3] = await Promise.all([client1.ping(), client2.ping(), client3.ping()]);
 
     expect(r1.reachable).toBe(false);
     expect(r2.reachable).toBe(false);
@@ -726,15 +748,17 @@ describe("watchHealth", () => {
   test("transitions from unhealthy to healthy on first success", async () => {
     const statuses: HealthStatus[] = [];
     const { client } = makeHttpClient(
-      Array.from({ length: 10 }, () => ({ body: {}, statusCode: 200 }))
+      Array.from({ length: 10 }, () => ({ body: {}, statusCode: 200 })),
     );
 
     const watcher = client.watchHealth({
       intervalMs: 10,
-      onChange: (status) => { statuses.push({ ...status }); }
+      onChange: (status) => {
+        statuses.push({ ...status });
+      },
     });
 
-    await Bun.sleep(100);
+    await new Promise((resolve) => setTimeout(resolve, 100));
     watcher.dispose();
 
     expect(statuses.length).toBeGreaterThanOrEqual(1);
@@ -752,16 +776,18 @@ describe("watchHealth", () => {
       new Error("down"),
       new Error("down"),
       new Error("down"),
-      new Error("down")
+      new Error("down"),
     ]);
 
     const watcher = client.watchHealth({
       intervalMs: 10,
       unhealthyAfter: 2,
-      onChange: (status) => { statuses.push({ ...status }); }
+      onChange: (status) => {
+        statuses.push({ ...status });
+      },
     });
 
-    await Bun.sleep(200);
+    await new Promise((resolve) => setTimeout(resolve, 200));
     watcher.dispose();
 
     // Should have: unhealthy->healthy transition, then healthy->unhealthy transition
@@ -774,15 +800,17 @@ describe("watchHealth", () => {
   test("does not fire onChange on every tick when status is stable", async () => {
     const statuses: HealthStatus[] = [];
     const { client } = makeHttpClient(
-      Array.from({ length: 20 }, () => ({ body: {}, statusCode: 200 }))
+      Array.from({ length: 20 }, () => ({ body: {}, statusCode: 200 })),
     );
 
     const watcher = client.watchHealth({
       intervalMs: 10,
-      onChange: (status) => { statuses.push({ ...status }); }
+      onChange: (status) => {
+        statuses.push({ ...status });
+      },
     });
 
-    await Bun.sleep(200);
+    await new Promise((resolve) => setTimeout(resolve, 200));
     watcher.dispose();
 
     // Should only fire once for the unhealthy->healthy transition
@@ -792,7 +820,7 @@ describe("watchHealth", () => {
 
   test("status() returns current snapshot", async () => {
     const { client } = makeHttpClient(
-      Array.from({ length: 10 }, () => ({ body: {}, statusCode: 200 }))
+      Array.from({ length: 10 }, () => ({ body: {}, statusCode: 200 })),
     );
 
     const watcher = client.watchHealth({ intervalMs: 10 });
@@ -802,7 +830,7 @@ describe("watchHealth", () => {
     expect(initial.healthy).toBe(false);
     expect(initial.consecutiveFailures).toBe(0);
 
-    await Bun.sleep(100);
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     // After pings succeed
     const updated = watcher.status();
@@ -818,7 +846,7 @@ describe("watchHealth", () => {
     const originalFetchInner = globalThis.fetch;
 
     const { client } = makeHttpClient(
-      Array.from({ length: 50 }, () => ({ body: {}, statusCode: 200 }))
+      Array.from({ length: 50 }, () => ({ body: {}, statusCode: 200 })),
     );
 
     // Wrap fetch to count calls
@@ -830,11 +858,11 @@ describe("watchHealth", () => {
 
     const watcher = client.watchHealth({ intervalMs: 10 });
 
-    await Bun.sleep(80);
+    await new Promise((resolve) => setTimeout(resolve, 80));
     watcher.dispose();
 
     const countAtDispose = pingCount;
-    await Bun.sleep(100);
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     // No more pings after dispose
     expect(pingCount).toBe(countAtDispose);
@@ -853,25 +881,27 @@ describe("pendingRequests", () => {
   test("returns pending HTTP requests with timing info", async () => {
     // Create a fetch that delays
     let resolveDelay: (() => void) | undefined;
-    const delayPromise = new Promise<void>((resolve) => { resolveDelay = resolve; });
+    const delayPromise = new Promise<void>((resolve) => {
+      resolveDelay = resolve;
+    });
 
     globalThis.fetch = async () => {
       await delayPromise;
       return new Response(JSON.stringify({}), {
         status: 200,
-        headers: { "content-type": "application/json" }
+        headers: { "content-type": "application/json" },
       });
     };
 
     const client = new UnrealRC({
       transport: "http",
-      http: { baseUrl: "http://127.0.0.1:30010" }
+      http: { baseUrl: "http://127.0.0.1:30010" },
     });
 
     // Start a request but don't await it
     const infoPromise = client.info({ retry: false });
 
-    await Bun.sleep(50);
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     const pending = await client.pendingRequests();
 
@@ -896,26 +926,28 @@ describe("onDisconnect and onReconnect", () => {
     const client = new UnrealRC({
       transport: "ws",
       ws: { connectTimeoutMs: 5000, autoReconnect: false },
-      onDisconnect: (info) => { disconnects.push(info); }
+      onDisconnect: (info) => {
+        disconnects.push(info);
+      },
     });
 
     // Trigger runtime initialization by starting a request (won't complete — mock doesn't respond)
-    const pendingRequest = client.info({ timeoutMs: 5000, retry: false }).catch(() => {});
+    const pendingRequest = client.info({ timeoutMs: 2000, retry: false }).catch(() => {});
 
     // Wait for socket to open
-    await Bun.sleep(50);
+    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(sockets.length).toBeGreaterThanOrEqual(1);
 
     // Close the socket (rejects pending request + fires onDisconnect)
     sockets[0]!.close();
 
-    await Bun.sleep(50);
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(disconnects.length).toBe(1);
 
     await pendingRequest;
     await client.dispose().catch(() => {});
-  });
+  }, 10_000);
 
   test("fires onReconnect on second connection but not first", async () => {
     const reconnects: number[] = [];
@@ -928,22 +960,26 @@ describe("onDisconnect and onReconnect", () => {
         connectTimeoutMs: 5000,
         autoReconnect: true,
         reconnectInitialDelayMs: 10,
-        reconnectMaxDelayMs: 20
+        reconnectMaxDelayMs: 20,
       },
-      onDisconnect: (info) => { disconnects.push(info); },
-      onReconnect: () => { reconnects.push(Date.now()); }
+      onDisconnect: (info) => {
+        disconnects.push(info);
+      },
+      onReconnect: () => {
+        reconnects.push(Date.now());
+      },
     });
 
     // Trigger runtime initialization (short timeout so it doesn't block on reconnect)
     const pendingRequest = client.info({ timeoutMs: 200, retry: false }).catch(() => {});
 
     // Wait for first connection
-    await Bun.sleep(50);
+    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(reconnects).toHaveLength(0);
 
     // Close first socket to trigger reconnect
     sockets[0]!.close();
-    await Bun.sleep(150);
+    await new Promise((resolve) => setTimeout(resolve, 150));
 
     // After reconnection, onReconnect should have fired
     expect(reconnects.length).toBeGreaterThanOrEqual(1);
@@ -957,13 +993,14 @@ describe("onDisconnect and onReconnect", () => {
     const disconnects: unknown[] = [];
     const reconnects: number[] = [];
 
-    const { client } = makeHttpClient(
-      [{ body: {}, statusCode: 200 }],
-      {
-        onDisconnect: (info: unknown) => { disconnects.push(info); },
-        onReconnect: () => { reconnects.push(Date.now()); }
-      }
-    );
+    const { client } = makeHttpClient([{ body: {}, statusCode: 200 }], {
+      onDisconnect: (info: unknown) => {
+        disconnects.push(info);
+      },
+      onReconnect: () => {
+        reconnects.push(Date.now());
+      },
+    });
 
     await client.info();
 
@@ -975,110 +1012,111 @@ describe("onDisconnect and onReconnect", () => {
 
 // ── Effect API tests ──────────────────────────────────────────────────
 
-const runEffect = <A, E, R>(
-  client: UnrealRC,
-  effect: Effect.Effect<A, E, R>
-): Promise<A> => {
+const runEffect = <A, E, R>(client: UnrealRC, effect: Effect.Effect<A, E, R>): Promise<A> => {
   const layer = makeFullLayer({
     transport: "http",
-    http: { baseUrl: "http://127.0.0.1:30010" }
+    http: { baseUrl: "http://127.0.0.1:30010" },
   });
-  return Effect.runPromise(
-    effect.pipe(Effect.provide(layer)) as Effect.Effect<A, E, never>
-  );
+  return Effect.runPromise(effect.pipe(Effect.provide(layer)) as Effect.Effect<A, E, never>);
 };
 
 describe("effect API", () => {
   test("effect.call resolves with normalized response", async () => {
-    const { client } = makeHttpClient([
-      { body: { ReturnValue: 42 }, statusCode: 200 }
-    ]);
+    const { client } = makeHttpClient([{ body: { ReturnValue: 42 }, statusCode: 200 }]);
 
-    const result = await runEffect(client, client.effect.call({
-      objectPath: "/Game/Maps/Main.Main:Actor",
-      functionName: "GetValue"
-    }));
+    const result = await runEffect(
+      client,
+      client.effect.call({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        functionName: "GetValue",
+      }),
+    );
 
     expect(result.ReturnValue).toBe(42);
   });
 
   test("effect.call normalizes single-output responses", async () => {
-    const { client } = makeHttpClient([
-      { body: { OutCounter: 99 }, statusCode: 200 }
-    ]);
+    const { client } = makeHttpClient([{ body: { OutCounter: 99 }, statusCode: 200 }]);
 
-    const result = await runEffect(client, client.effect.call({
-      objectPath: "/Game/Maps/Main.Main:Actor",
-      functionName: "GetCounter"
-    }));
+    const result = await runEffect(
+      client,
+      client.effect.call({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        functionName: "GetCounter",
+      }),
+    );
 
     expect(result).toEqual({ OutCounter: 99, ReturnValue: 99 });
   });
 
   test("effect.getProperty returns parsed value", async () => {
-    const { client } = makeHttpClient([
-      { body: { Counter: 55 }, statusCode: 200 }
-    ]);
+    const { client } = makeHttpClient([{ body: { Counter: 55 }, statusCode: 200 }]);
 
-    const result = await runEffect(client, client.effect.getProperty<number>({
-      objectPath: "/Game/Maps/Main.Main:Actor",
-      propertyName: "Counter"
-    }));
+    const result = await runEffect(
+      client,
+      client.effect.getProperty<number>({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        propertyName: "Counter",
+      }),
+    );
 
     expect(result).toBe(55);
   });
 
   test("effect.setProperty sends write access", async () => {
-    const { client, requests } = makeHttpClient([
-      { body: { ReturnValue: null }, statusCode: 200 }
-    ]);
+    const { client, requests } = makeHttpClient([{ body: { ReturnValue: null }, statusCode: 200 }]);
 
-    await runEffect(client, client.effect.setProperty({
-      objectPath: "/Game/Maps/Main.Main:Actor",
-      propertyName: "Counter",
-      propertyValue: 7
-    }));
+    await runEffect(
+      client,
+      client.effect.setProperty({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        propertyName: "Counter",
+        propertyValue: 7,
+      }),
+    );
 
     expect(requests[0]?.body).toMatchObject({
       objectPath: "/Game/Maps/Main.Main:Actor",
       propertyName: "Counter",
       propertyValue: { Counter: 7 },
-      access: "WRITE_ACCESS"
+      access: "WRITE_ACCESS",
     });
   });
 
   test("effect.describe returns object metadata", async () => {
     const { client } = makeHttpClient([
-      { body: { Name: "TestActor", Class: "Actor" }, statusCode: 200 }
+      { body: { Name: "TestActor", Class: "Actor" }, statusCode: 200 },
     ]);
 
-    const result = await runEffect(client, client.effect.describe({
-      objectPath: "/Game/Maps/Main.Main:Actor"
-    }));
+    const result = await runEffect(
+      client,
+      client.effect.describe({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+      }),
+    );
 
     expect((result as Record<string, unknown>).Name).toBe("TestActor");
   });
 
   test("effect.searchAssets sends query with options", async () => {
-    const { client, requests } = makeHttpClient([
-      { body: { Assets: [] }, statusCode: 200 }
-    ]);
+    const { client, requests } = makeHttpClient([{ body: { Assets: [] }, statusCode: 200 }]);
 
-    await runEffect(client, client.effect.searchAssets({
-      query: "Chair",
-      classNames: ["StaticMeshActor"]
-    }));
+    await runEffect(
+      client,
+      client.effect.searchAssets({
+        query: "Chair",
+        classNames: ["StaticMeshActor"],
+      }),
+    );
 
     expect(requests[0]?.body).toMatchObject({
       query: "Chair",
-      classNames: ["StaticMeshActor"]
+      classNames: ["StaticMeshActor"],
     });
   });
 
   test("effect.info returns server info", async () => {
-    const { client } = makeHttpClient([
-      { body: { HttpPort: 30010 }, statusCode: 200 }
-    ]);
+    const { client } = makeHttpClient([{ body: { HttpPort: 30010 }, statusCode: 200 }]);
 
     const result = await runEffect(client, client.effect.info());
 
@@ -1086,32 +1124,36 @@ describe("effect API", () => {
   });
 
   test("effect.event sends event payload", async () => {
-    const { client, requests } = makeHttpClient([
-      { body: {}, statusCode: 200 }
-    ]);
+    const { client, requests } = makeHttpClient([{ body: {}, statusCode: 200 }]);
 
-    await runEffect(client, client.effect.event({
-      objectPath: "/Game/Maps/Main.Main:Actor",
-      propertyName: "Health"
-    }));
+    await runEffect(
+      client,
+      client.effect.event({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        propertyName: "Health",
+      }),
+    );
 
     expect(requests[0]?.body).toMatchObject({
       objectPath: "/Game/Maps/Main.Main:Actor",
-      propertyName: "Health"
+      propertyName: "Health",
     });
   });
 
   test("effect.thumbnail sends thumbnail request", async () => {
     const { client, requests } = makeHttpClient([
-      { body: { resolution: [128, 128] }, statusCode: 200 }
+      { body: { resolution: [128, 128] }, statusCode: 200 },
     ]);
 
-    await runEffect(client, client.effect.thumbnail({
-      objectPath: "/Game/Maps/Main.Main:Actor"
-    }));
+    await runEffect(
+      client,
+      client.effect.thumbnail({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+      }),
+    );
 
     expect(requests[0]?.body).toMatchObject({
-      objectPath: "/Game/Maps/Main.Main:Actor"
+      objectPath: "/Game/Maps/Main.Main:Actor",
     });
   });
 
@@ -1119,20 +1161,21 @@ describe("effect API", () => {
     const { client } = makeHttpClient([
       {
         body: {
-          Responses: [
-            { RequestId: 0, ResponseCode: 200, ResponseBody: { ReturnValue: "ok" } }
-          ]
+          Responses: [{ RequestId: 0, ResponseCode: 200, ResponseBody: { ReturnValue: "ok" } }],
         },
-        statusCode: 200
-      }
+        statusCode: 200,
+      },
     ]);
 
-    const results = await runEffect(client, client.effect.batch((builder) => {
-      builder.call({
-        objectPath: "/Game/Maps/Main.Main:Actor",
-        functionName: "GetValue"
-      });
-    }));
+    const results = await runEffect(
+      client,
+      client.effect.batch((builder) => {
+        builder.call({
+          objectPath: "/Game/Maps/Main.Main:Actor",
+          functionName: "GetValue",
+        });
+      }),
+    );
 
     expect(results).toHaveLength(1);
     expect(results[0]?.statusCode).toBe(200);
@@ -1140,9 +1183,7 @@ describe("effect API", () => {
   });
 
   test("effect.ping returns reachable true on success", async () => {
-    const { client } = makeHttpClient([
-      { body: {}, statusCode: 200 }
-    ]);
+    const { client } = makeHttpClient([{ body: {}, statusCode: 200 }]);
 
     const result = await runEffect(client, client.effect.ping());
 
@@ -1151,9 +1192,7 @@ describe("effect API", () => {
   });
 
   test("effect.ping returns reachable false on failure", async () => {
-    const { client } = makeHttpClient([
-      new Error("connection refused")
-    ]);
+    const { client } = makeHttpClient([new Error("connection refused")]);
 
     const result = await runEffect(client, client.effect.ping());
 
@@ -1170,9 +1209,7 @@ describe("effect API", () => {
   });
 
   test("effect methods fail with tagged TransportError", async () => {
-    const { client } = makeHttpClient([
-      { body: { message: "busy" }, statusCode: 503 }
-    ]);
+    const { client } = makeHttpClient([{ body: { message: "busy" }, statusCode: 503 }]);
 
     try {
       await runEffect(client, client.effect.info());
@@ -1185,15 +1222,15 @@ describe("effect API", () => {
   });
 
   test("effect.call can be narrowed with catchTag", async () => {
-    const { client } = makeHttpClient([
-      { body: { message: "busy" }, statusCode: 503 }
-    ]);
+    const { client } = makeHttpClient([{ body: { message: "busy" }, statusCode: 503 }]);
 
-    const program = client.effect.info().pipe(
-      Effect.catchTag("HttpStatusError", (e) =>
-        Effect.succeed({ HttpPort: e.statusCode, Routes: {} })
-      )
-    );
+    const program = client.effect
+      .info()
+      .pipe(
+        Effect.catchTag("HttpStatusError", (e) =>
+          Effect.succeed({ HttpPort: e.statusCode, Routes: {} }),
+        ),
+      );
 
     const result = await runEffect(client, program);
 
@@ -1201,10 +1238,9 @@ describe("effect API", () => {
   });
 
   test("effect methods skip validation when validateResponses is false", async () => {
-    const { client } = makeHttpClient(
-      [{ body: 123, statusCode: 200 }],
-      { validateResponses: false }
-    );
+    const { client } = makeHttpClient([{ body: 123, statusCode: 200 }], {
+      validateResponses: false,
+    });
 
     const result = await runEffect(client, client.effect.info());
 
@@ -1224,7 +1260,11 @@ describe("request / requestRaw (Promise API)", () => {
   test("request with schema decodes response", async () => {
     const NumberResult = Schema.Struct({ value: Schema.Number });
     const { client } = makeHttpClient([{ body: { value: 42 }, statusCode: 200 }]);
-    const result = await client.request({ verb: "GET", url: "/custom", responseSchema: NumberResult });
+    const result = await client.request({
+      verb: "GET",
+      url: "/custom",
+      responseSchema: NumberResult,
+    });
     expect(result).toEqual({ value: 42 });
   });
 
@@ -1239,25 +1279,21 @@ describe("request / requestRaw (Promise API)", () => {
 
   test("request fires request and response hooks", async () => {
     const hookCalls: string[] = [];
-    const { client } = makeHttpClient(
-      [{ body: { ok: true }, statusCode: 200 }],
-      {
-        onRequest: () => hookCalls.push("request"),
-        onResponse: () => hookCalls.push("response"),
-      }
-    );
+    const { client } = makeHttpClient([{ body: { ok: true }, statusCode: 200 }], {
+      onRequest: () => hookCalls.push("request"),
+      onResponse: () => hookCalls.push("response"),
+    });
     await client.request({ verb: "GET", url: "/custom" });
     expect(hookCalls).toEqual(["request", "response"]);
   });
 
   test("requestRaw fires error hook on HTTP failure", async () => {
     const errors: unknown[] = [];
-    const { client } = makeHttpClient(
-      [{ body: {}, statusCode: 500 }],
-      { onError: (ctx) => errors.push(ctx) }
-    );
+    const { client } = makeHttpClient([{ body: {}, statusCode: 500 }], {
+      onError: (ctx) => errors.push(ctx),
+    });
     await expect(
-      client.requestRaw({ verb: "GET", url: "/custom", retry: false })
+      client.requestRaw({ verb: "GET", url: "/custom", retry: false }),
     ).rejects.toBeInstanceOf(TransportRequestError);
     expect(errors).toHaveLength(1);
   });
@@ -1265,7 +1301,7 @@ describe("request / requestRaw (Promise API)", () => {
   test("request rejects with TransportRequestError on HTTP error status", async () => {
     const { client } = makeHttpClient([{ body: { error: "nope" }, statusCode: 503 }]);
     await expect(
-      client.request({ verb: "GET", url: "/custom", retry: false })
+      client.request({ verb: "GET", url: "/custom", retry: false }),
     ).rejects.toMatchObject({ kind: "http_status", statusCode: 503 });
   });
 
@@ -1275,7 +1311,7 @@ describe("request / requestRaw (Promise API)", () => {
         { body: { error: "busy" }, statusCode: 503 },
         { body: { ok: true }, statusCode: 200 },
       ],
-      { retry: { maxAttempts: 2, delayMs: 0 } }
+      { retry: { maxAttempts: 2, delayMs: 0 } },
     );
     const result = await client.request({ verb: "GET", url: "/custom" });
     expect(result).toEqual({ ok: true });
@@ -1293,13 +1329,19 @@ describe("request / requestRaw (Effect API)", () => {
   test("effect.request with schema decodes response", async () => {
     const NumberResult = Schema.Struct({ value: Schema.Number });
     const { client } = makeHttpClient([{ body: { value: 99 }, statusCode: 200 }]);
-    const result = await runEffect(client, client.effect.request({ verb: "GET", url: "/custom", responseSchema: NumberResult }));
+    const result = await runEffect(
+      client,
+      client.effect.request({ verb: "GET", url: "/custom", responseSchema: NumberResult }),
+    );
     expect(result).toEqual({ value: 99 });
   });
 
   test("effect.requestRaw returns TransportResponse", async () => {
     const { client } = makeHttpClient([{ body: { a: 1 }, statusCode: 200 }]);
-    const result = await runEffect(client, client.effect.requestRaw({ verb: "GET", url: "/custom" }));
+    const result = await runEffect(
+      client,
+      client.effect.requestRaw({ verb: "GET", url: "/custom" }),
+    );
     expect(result.body).toEqual({ a: 1 });
     expect(result.statusCode).toBe(200);
   });
@@ -1307,7 +1349,10 @@ describe("request / requestRaw (Effect API)", () => {
   test("effect.requestRaw fails with tagged TransportError on HTTP error", async () => {
     const { client } = makeHttpClient([{ body: {}, statusCode: 503 }]);
     try {
-      await runEffect(client, client.effect.requestRaw({ verb: "GET", url: "/custom", retry: false }));
+      await runEffect(
+        client,
+        client.effect.requestRaw({ verb: "GET", url: "/custom", retry: false }),
+      );
       expect.unreachable("should have thrown");
     } catch (e) {
       expect((e as HttpStatusError)._tag).toBe("HttpStatusError");
@@ -1316,14 +1361,15 @@ describe("request / requestRaw (Effect API)", () => {
   });
 
   test("effect.request retries on transient failures", async () => {
-    const { client, requests } = makeHttpClient(
-      [
-        { body: {}, statusCode: 502 },
-        { body: { retried: true }, statusCode: 200 },
-      ]
-    );
+    const { client, requests } = makeHttpClient([
+      { body: {}, statusCode: 502 },
+      { body: { retried: true }, statusCode: 200 },
+    ]);
     // Note: retry is controlled per-call or client-level
-    const result = await runEffect(client, client.effect.request({ verb: "GET", url: "/custom", retry: { maxAttempts: 2, delayMs: 0 } }));
+    const result = await runEffect(
+      client,
+      client.effect.request({ verb: "GET", url: "/custom", retry: { maxAttempts: 2, delayMs: 0 } }),
+    );
     expect(result).toEqual({ retried: true });
     expect(requests).toHaveLength(2);
   });
@@ -1335,87 +1381,78 @@ describe("callReturn (Promise API)", () => {
   const ReturnSchema = Schema.Struct({ score: Schema.Number });
 
   test("decodes ReturnValue with provided schema", async () => {
-    const { client } = makeHttpClient([
-      { body: { ReturnValue: { score: 100 } }, statusCode: 200 }
-    ]);
+    const { client } = makeHttpClient([{ body: { ReturnValue: { score: 100 } }, statusCode: 200 }]);
     const result = await client.callReturn({
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "GetScore",
-      returnSchema: ReturnSchema
+      returnSchema: ReturnSchema,
     });
     expect(result).toEqual({ score: 100 });
   });
 
   test("normalizes single-key response then decodes ReturnValue", async () => {
-    const { client } = makeHttpClient([
-      { body: { OutScore: { score: 75 } }, statusCode: 200 }
-    ]);
+    const { client } = makeHttpClient([{ body: { OutScore: { score: 75 } }, statusCode: 200 }]);
     const result = await client.callReturn({
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "GetScore",
-      returnSchema: ReturnSchema
+      returnSchema: ReturnSchema,
     });
     expect(result).toEqual({ score: 75 });
   });
 
   test("throws TransportRequestError when ReturnValue is missing", async () => {
-    const { client } = makeHttpClient([
-      { body: { NotReturnValue: {} }, statusCode: 200 }
-    ]);
+    const { client } = makeHttpClient([{ body: { NotReturnValue: {} }, statusCode: 200 }]);
     await expect(
       client.callReturn({
         objectPath: "/Game/Maps/Main.Main:Actor",
         functionName: "GetScore",
-        returnSchema: ReturnSchema
-      })
+        returnSchema: ReturnSchema,
+      }),
     ).rejects.toMatchObject({ kind: "decode" });
   });
 
   test("throws TransportRequestError when ReturnValue fails schema decode", async () => {
     const { client } = makeHttpClient([
-      { body: { ReturnValue: { score: "not-a-number" } }, statusCode: 200 }
+      { body: { ReturnValue: { score: "not-a-number" } }, statusCode: 200 },
     ]);
     await expect(
       client.callReturn({
         objectPath: "/Game/Maps/Main.Main:Actor",
         functionName: "GetScore",
-        returnSchema: ReturnSchema
-      })
+        returnSchema: ReturnSchema,
+      }),
     ).rejects.toMatchObject({ kind: "decode" });
   });
 
   test("passes through transaction and parameters", async () => {
     const { client, requests } = makeHttpClient([
-      { body: { ReturnValue: { score: 1 } }, statusCode: 200 }
+      { body: { ReturnValue: { score: 1 } }, statusCode: 200 },
     ]);
     await client.callReturn({
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "AddScore",
       parameters: { Delta: 5 },
       transaction: true,
-      returnSchema: ReturnSchema
+      returnSchema: ReturnSchema,
     });
     expect(requests[0]?.body).toMatchObject({
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "AddScore",
       parameters: { Delta: 5 },
-      generateTransaction: true
+      generateTransaction: true,
     });
   });
 
   test("fires hooks", async () => {
     const hookCalls: string[] = [];
-    const { client } = makeHttpClient(
-      [{ body: { ReturnValue: { score: 1 } }, statusCode: 200 }],
-      {
-        onRequest: () => hookCalls.push("request"),
-        onResponse: () => hookCalls.push("response"),
-      }
-    );
+    const { client } = makeHttpClient([{ body: { ReturnValue: { score: 1 } }, statusCode: 200 }], {
+      onRequest: () => hookCalls.push("request"),
+      onResponse: () => hookCalls.push("response"),
+    });
     await client.callReturn({
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "GetScore",
-      returnSchema: ReturnSchema
+      returnSchema: ReturnSchema,
     });
     expect(hookCalls).toEqual(["request", "response"]);
   });
@@ -1425,39 +1462,42 @@ describe("callReturn (Effect API)", () => {
   const ReturnSchema = Schema.Struct({ score: Schema.Number });
 
   test("effect.callReturn decodes ReturnValue with schema", async () => {
-    const { client } = makeHttpClient([
-      { body: { ReturnValue: { score: 42 } }, statusCode: 200 }
-    ]);
-    const result = await runEffect(client, client.effect.callReturn({
-      objectPath: "/Game/Maps/Main.Main:Actor",
-      functionName: "GetScore",
-      returnSchema: ReturnSchema
-    }));
+    const { client } = makeHttpClient([{ body: { ReturnValue: { score: 42 } }, statusCode: 200 }]);
+    const result = await runEffect(
+      client,
+      client.effect.callReturn({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        functionName: "GetScore",
+        returnSchema: ReturnSchema,
+      }),
+    );
     expect(result).toEqual({ score: 42 });
   });
 
   test("effect.callReturn normalizes single-key response", async () => {
-    const { client } = makeHttpClient([
-      { body: { OutScore: { score: 88 } }, statusCode: 200 }
-    ]);
-    const result = await runEffect(client, client.effect.callReturn({
-      objectPath: "/Game/Maps/Main.Main:Actor",
-      functionName: "GetScore",
-      returnSchema: ReturnSchema
-    }));
+    const { client } = makeHttpClient([{ body: { OutScore: { score: 88 } }, statusCode: 200 }]);
+    const result = await runEffect(
+      client,
+      client.effect.callReturn({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        functionName: "GetScore",
+        returnSchema: ReturnSchema,
+      }),
+    );
     expect(result).toEqual({ score: 88 });
   });
 
   test("effect.callReturn fails with DecodeError when ReturnValue missing", async () => {
-    const { client } = makeHttpClient([
-      { body: { NotReturnValue: {} }, statusCode: 200 }
-    ]);
+    const { client } = makeHttpClient([{ body: { NotReturnValue: {} }, statusCode: 200 }]);
     try {
-      await runEffect(client, client.effect.callReturn({
-        objectPath: "/Game/Maps/Main.Main:Actor",
-        functionName: "GetScore",
-        returnSchema: ReturnSchema
-      }));
+      await runEffect(
+        client,
+        client.effect.callReturn({
+          objectPath: "/Game/Maps/Main.Main:Actor",
+          functionName: "GetScore",
+          returnSchema: ReturnSchema,
+        }),
+      );
       expect.unreachable("should have thrown");
     } catch (e) {
       expect((e as DecodeError)._tag).toBe("DecodeError");
@@ -1467,14 +1507,17 @@ describe("callReturn (Effect API)", () => {
 
   test("effect.callReturn fails with DecodeError on schema mismatch", async () => {
     const { client } = makeHttpClient([
-      { body: { ReturnValue: { score: "bad" } }, statusCode: 200 }
+      { body: { ReturnValue: { score: "bad" } }, statusCode: 200 },
     ]);
     try {
-      await runEffect(client, client.effect.callReturn({
-        objectPath: "/Game/Maps/Main.Main:Actor",
-        functionName: "GetScore",
-        returnSchema: ReturnSchema
-      }));
+      await runEffect(
+        client,
+        client.effect.callReturn({
+          objectPath: "/Game/Maps/Main.Main:Actor",
+          functionName: "GetScore",
+          returnSchema: ReturnSchema,
+        }),
+      );
       expect.unreachable("should have thrown");
     } catch (e) {
       expect((e as DecodeError)._tag).toBe("DecodeError");
@@ -1483,18 +1526,16 @@ describe("callReturn (Effect API)", () => {
 
   test("effect.callReturn can be narrowed with catchTag", async () => {
     const { client } = makeHttpClient([
-      { body: { ReturnValue: { score: "bad" } }, statusCode: 200 }
+      { body: { ReturnValue: { score: "bad" } }, statusCode: 200 },
     ]);
 
-    const program = client.effect.callReturn({
-      objectPath: "/Game/Maps/Main.Main:Actor",
-      functionName: "GetScore",
-      returnSchema: ReturnSchema
-    }).pipe(
-      Effect.catchTag("DecodeError", () =>
-        Effect.succeed({ score: -1 })
-      )
-    );
+    const program = client.effect
+      .callReturn({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        functionName: "GetScore",
+        returnSchema: ReturnSchema,
+      })
+      .pipe(Effect.catchTag("DecodeError", () => Effect.succeed({ score: -1 })));
 
     const result = await runEffect(client, program);
     expect(result).toEqual({ score: -1 });
@@ -1524,7 +1565,7 @@ describe("UnrealRCService (Phase 7)", () => {
     });
 
     await expect(
-      Effect.runPromise(program.pipe(Effect.provide(UnrealRCTest)))
+      Effect.runPromise(program.pipe(Effect.provide(UnrealRCTest))),
     ).resolves.toBeUndefined();
   });
 
@@ -1534,9 +1575,9 @@ describe("UnrealRCService (Phase 7)", () => {
       yield* svc.call({ objectPath: "/Foo", functionName: "Bar" });
     });
 
-    await expect(
-      Effect.runPromise(program.pipe(Effect.provide(UnrealRCTest)))
-    ).rejects.toThrow(/UnrealRCTest.*call/);
+    await expect(Effect.runPromise(program.pipe(Effect.provide(UnrealRCTest)))).rejects.toThrow(
+      /UnrealRCTest.*call/,
+    );
   });
 
   test("service can be provided with a custom implementation", async () => {
@@ -1548,9 +1589,7 @@ describe("UnrealRCService (Phase 7)", () => {
       const svc = yield* UnrealRCService;
       const result = yield* svc.call({ objectPath: "/Foo", functionName: "Bar" });
       return result;
-    }).pipe(
-      Effect.provide(customLayer)
-    ) as Effect.Effect<{ ReturnValue: string }, never, never>;
+    }).pipe(Effect.provide(customLayer)) as Effect.Effect<{ ReturnValue: string }, never, never>;
 
     const result = await Effect.runPromise(program);
     expect((result as Record<string, unknown>).ReturnValue).toBe("mocked");
@@ -1578,14 +1617,15 @@ describe("Effect-native hooks (Phase 8)", () => {
   test("onRequestEffect fires before transport dispatch", async () => {
     const order: string[] = [];
 
-    const { client } = makeHttpClient(
-      [{ body: { ReturnValue: "ok" }, statusCode: 200 }],
-      {
-        onRequestEffect: () =>
-          Effect.sync(() => { order.push("request-effect"); }),
-        onRequest: () => { order.push("request-callback"); }
-      }
-    );
+    const { client } = makeHttpClient([{ body: { ReturnValue: "ok" }, statusCode: 200 }], {
+      onRequestEffect: () =>
+        Effect.sync(() => {
+          order.push("request-effect");
+        }),
+      onRequest: () => {
+        order.push("request-callback");
+      },
+    });
 
     // Use Promise API which fires callbacks then delegates to Effect
     await client.call({ objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" });
@@ -1598,18 +1638,20 @@ describe("Effect-native hooks (Phase 8)", () => {
   test("onResponseEffect fires with response metadata", async () => {
     const responses: EffectResponseHookContext[] = [];
 
-    const { client } = makeHttpClient(
-      [{ body: { ReturnValue: 42 }, statusCode: 200 }],
-      {
-        onResponseEffect: (ctx) =>
-          Effect.sync(() => { responses.push(ctx); })
-      }
-    );
+    const { client } = makeHttpClient([{ body: { ReturnValue: 42 }, statusCode: 200 }], {
+      onResponseEffect: (ctx) =>
+        Effect.sync(() => {
+          responses.push(ctx);
+        }),
+    });
 
-    await runEffect(client, client.effect.call({
-      objectPath: "/Game/Maps/Main.Main:Actor",
-      functionName: "GetValue"
-    }));
+    await runEffect(
+      client,
+      client.effect.call({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        functionName: "GetValue",
+      }),
+    );
 
     expect(responses).toHaveLength(1);
     expect(responses[0]?.transport).toBe("http");
@@ -1623,13 +1665,12 @@ describe("Effect-native hooks (Phase 8)", () => {
   test("onErrorEffect fires with TransportError on failure", async () => {
     const errors: EffectErrorHookContext[] = [];
 
-    const { client } = makeHttpClient(
-      [{ body: { message: "busy" }, statusCode: 503 }],
-      {
-        onErrorEffect: (ctx) =>
-          Effect.sync(() => { errors.push(ctx); })
-      }
-    );
+    const { client } = makeHttpClient([{ body: { message: "busy" }, statusCode: 503 }], {
+      onErrorEffect: (ctx) =>
+        Effect.sync(() => {
+          errors.push(ctx);
+        }),
+    });
 
     try {
       await runEffect(client, client.effect.info({ retry: false }));
@@ -1648,13 +1689,16 @@ describe("Effect-native hooks (Phase 8)", () => {
 
   test("onRequestEffect runs for effect.request", async () => {
     const hooks: string[] = [];
-    const { client } = makeHttpClient(
-      [{ body: { ok: true }, statusCode: 200 }],
-      {
-        onRequestEffect: () => Effect.sync(() => { hooks.push("req"); }),
-        onResponseEffect: () => Effect.sync(() => { hooks.push("res"); })
-      }
-    );
+    const { client } = makeHttpClient([{ body: { ok: true }, statusCode: 200 }], {
+      onRequestEffect: () =>
+        Effect.sync(() => {
+          hooks.push("req");
+        }),
+      onResponseEffect: () =>
+        Effect.sync(() => {
+          hooks.push("res");
+        }),
+    });
 
     await runEffect(client, client.effect.request({ verb: "GET", url: "/custom" }));
 
@@ -1663,15 +1707,18 @@ describe("Effect-native hooks (Phase 8)", () => {
 
   test("onErrorEffect fires for effect.requestRaw on error", async () => {
     const errors: EffectErrorHookContext[] = [];
-    const { client } = makeHttpClient(
-      [{ body: {}, statusCode: 500 }],
-      {
-        onErrorEffect: (ctx) => Effect.sync(() => { errors.push(ctx); })
-      }
-    );
+    const { client } = makeHttpClient([{ body: {}, statusCode: 500 }], {
+      onErrorEffect: (ctx) =>
+        Effect.sync(() => {
+          errors.push(ctx);
+        }),
+    });
 
     try {
-      await runEffect(client, client.effect.requestRaw({ verb: "GET", url: "/custom", retry: false }));
+      await runEffect(
+        client,
+        client.effect.requestRaw({ verb: "GET", url: "/custom", retry: false }),
+      );
       expect.unreachable("should have thrown");
     } catch (e) {
       expect((e as HttpStatusError)._tag).toBe("HttpStatusError");
@@ -1684,19 +1731,22 @@ describe("Effect-native hooks (Phase 8)", () => {
   test("onErrorEffect fires on DecodeError", async () => {
     const errors: EffectErrorHookContext[] = [];
     const StrictSchema = Schema.Struct({ requiredField: Schema.String });
-    const { client } = makeHttpClient(
-      [{ body: { wrong_field: 1 }, statusCode: 200 }],
-      {
-        onErrorEffect: (ctx) => Effect.sync(() => { errors.push(ctx); })
-      }
-    );
+    const { client } = makeHttpClient([{ body: { wrong_field: 1 }, statusCode: 200 }], {
+      onErrorEffect: (ctx) =>
+        Effect.sync(() => {
+          errors.push(ctx);
+        }),
+    });
 
     try {
-      await runEffect(client, client.effect.request({
-        verb: "GET",
-        url: "/remote/info",
-        responseSchema: StrictSchema
-      }));
+      await runEffect(
+        client,
+        client.effect.request({
+          verb: "GET",
+          url: "/remote/info",
+          responseSchema: StrictSchema,
+        }),
+      );
       expect.unreachable("should have thrown");
     } catch (e) {
       expect((e as DecodeError)._tag).toBe("DecodeError");
@@ -1709,76 +1759,81 @@ describe("Effect-native hooks (Phase 8)", () => {
   test("Effect hook failure propagates to caller", async () => {
     const hookError = new Error("hook exploded");
 
-    const { client } = makeHttpClient(
-      [{ body: { ReturnValue: 42 }, statusCode: 200 }],
-      {
-        onRequestEffect: () => Effect.die(hookError)
-      }
-    );
+    const { client } = makeHttpClient([{ body: { ReturnValue: 42 }, statusCode: 200 }], {
+      onRequestEffect: () => Effect.die(hookError),
+    });
 
     await expect(
-      runEffect(client, client.effect.call({
-        objectPath: "/Game/Maps/Main.Main:Actor",
-        functionName: "GetValue"
-      }))
+      runEffect(
+        client,
+        client.effect.call({
+          objectPath: "/Game/Maps/Main.Main:Actor",
+          functionName: "GetValue",
+        }),
+      ),
     ).rejects.toThrow();
   });
 
   test("onResponseEffect failure propagates", async () => {
     const hookError = new Error("response hook exploded");
 
-    const { client } = makeHttpClient(
-      [{ body: { ReturnValue: 42 }, statusCode: 200 }],
-      {
-        onResponseEffect: () => Effect.die(hookError)
-      }
-    );
+    const { client } = makeHttpClient([{ body: { ReturnValue: 42 }, statusCode: 200 }], {
+      onResponseEffect: () => Effect.die(hookError),
+    });
 
     await expect(
-      runEffect(client, client.effect.call({
-        objectPath: "/Game/Maps/Main.Main:Actor",
-        functionName: "GetValue"
-      }))
+      runEffect(
+        client,
+        client.effect.call({
+          objectPath: "/Game/Maps/Main.Main:Actor",
+          functionName: "GetValue",
+        }),
+      ),
     ).rejects.toThrow();
   });
 
   test("onErrorEffect failure does not mask original error", async () => {
     const hookError = new Error("error hook exploded");
 
-    const { client } = makeHttpClient(
-      [{ body: {}, statusCode: 503 }],
-      {
-        onErrorEffect: () => Effect.die(hookError)
-      }
-    );
+    const { client } = makeHttpClient([{ body: {}, statusCode: 503 }], {
+      onErrorEffect: () => Effect.die(hookError),
+    });
 
     // The original transport error should still surface (tapError doesn't
     // catch errors; it just runs a side effect). The hook failure being a
     // die() means it will cause a defect, but tapError doesn't catch.
     // In practice Effect.die in tapError causes the fiber to die with a
     // defect; let's verify the behavior is to throw.
-    await expect(
-      runEffect(client, client.effect.info({ retry: false }))
-    ).rejects.toThrow();
+    await expect(runEffect(client, client.effect.info({ retry: false }))).rejects.toThrow();
   });
 
   test("Effect hooks run alongside callback hooks independently", async () => {
     const order: string[] = [];
 
-    const { client } = makeHttpClient(
-      [{ body: { ReturnValue: true }, statusCode: 200 }],
-      {
-        onRequest: () => { order.push("callback-req"); },
-        onResponse: () => { order.push("callback-res"); },
-        onRequestEffect: () => Effect.sync(() => { order.push("effect-req"); }),
-        onResponseEffect: () => Effect.sync(() => { order.push("effect-res"); })
-      }
-    );
+    const { client } = makeHttpClient([{ body: { ReturnValue: true }, statusCode: 200 }], {
+      onRequest: () => {
+        order.push("callback-req");
+      },
+      onResponse: () => {
+        order.push("callback-res");
+      },
+      onRequestEffect: () =>
+        Effect.sync(() => {
+          order.push("effect-req");
+        }),
+      onResponseEffect: () =>
+        Effect.sync(() => {
+          order.push("effect-res");
+        }),
+    });
 
-    await runEffect(client, client.effect.call({
-      objectPath: "/Game/Maps/Main.Main:Actor",
-      functionName: "GetValue"
-    }));
+    await runEffect(
+      client,
+      client.effect.call({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        functionName: "GetValue",
+      }),
+    );
 
     // Effect hooks run when going through the Effect path directly
     // (callback hooks only fire in the Promise wrapper)
@@ -1787,14 +1842,15 @@ describe("Effect-native hooks (Phase 8)", () => {
 
   test("Effect-native hooks not called when not configured", async () => {
     // No hooks configured — should work without error
-    const { client } = makeHttpClient([
-      { body: { ReturnValue: 42 }, statusCode: 200 }
-    ]);
+    const { client } = makeHttpClient([{ body: { ReturnValue: 42 }, statusCode: 200 }]);
 
-    const result = await runEffect(client, client.effect.call({
-      objectPath: "/Game/Maps/Main.Main:Actor",
-      functionName: "GetValue"
-    }));
+    const result = await runEffect(
+      client,
+      client.effect.call({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        functionName: "GetValue",
+      }),
+    );
 
     expect(result.ReturnValue).toBe(42);
   });
@@ -1802,21 +1858,17 @@ describe("Effect-native hooks (Phase 8)", () => {
   test("tracing annotations are present on success span", async () => {
     const annotations: Record<string, unknown>[] = [];
 
-    const { client } = makeHttpClient(
-      [{ body: { ReturnValue: 1 }, statusCode: 200 }]
-    );
+    const { client } = makeHttpClient([{ body: { ReturnValue: 1 }, statusCode: 200 }]);
 
     // Use a custom logger to capture annotations
-    const program = client.effect.call({
-      objectPath: "/Game/Maps/Main.Main:Actor",
-      functionName: "GetValue"
-    }).pipe(
-      Effect.tap(() =>
-        Effect.logInfo("request complete").pipe(
-          Effect.withLogSpan("test-span")
-        )
-      )
-    );
+    const program = client.effect
+      .call({
+        objectPath: "/Game/Maps/Main.Main:Actor",
+        functionName: "GetValue",
+      })
+      .pipe(
+        Effect.tap(() => Effect.logInfo("request complete").pipe(Effect.withLogSpan("test-span"))),
+      );
 
     // Just verify the program runs — annotations are additive
     const result = await runEffect(client, program);

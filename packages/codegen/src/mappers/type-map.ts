@@ -64,8 +64,5 @@ export function isContainerType(engineClassName: string): boolean {
  * cross-module resolution (struct or enum).
  */
 export function needsResolution(engineClassName: string): boolean {
-  return (
-    engineClassName === "StructProperty" ||
-    engineClassName === "EnumProperty"
-  );
+  return engineClassName === "StructProperty" || engineClassName === "EnumProperty";
 }

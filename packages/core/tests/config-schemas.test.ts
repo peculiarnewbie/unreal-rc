@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { Schema } from "effect";
 import {
   HttpTransportOptionsSchema,
@@ -6,20 +6,21 @@ import {
   RuntimeConfigSchema,
   RetryPolicySchema,
   UnrealRCOptionsSchema,
-  WatchHealthOptionsSchema
+  WatchHealthOptionsSchema,
 } from "../src/index.js";
 
-const decode = <S extends Schema.Schema.Any>(schema: S) =>
-  Schema.decodeUnknownSync(schema);
+const decode = <S extends Schema.Schema.Any>(schema: S) => Schema.decodeUnknownSync(schema);
 
-const ignoreExcess = <S extends Schema.Schema.Any>(schema: S) =>
-  (input: unknown) => Schema.decodeUnknownSync(schema)(input, { onExcessProperty: "ignore" });
+const ignoreExcess =
+  <S extends Schema.Schema.Any>(schema: S) =>
+  (input: unknown) =>
+    Schema.decodeUnknownSync(schema)(input, { onExcessProperty: "ignore" });
 
 describe("HttpTransportOptionsSchema", () => {
   test("accepts valid options", () => {
     const result = decode(HttpTransportOptionsSchema)({
       host: "127.0.0.1",
-      port: 30010
+      port: 30010,
     });
     expect(result.host).toBe("127.0.0.1");
     expect(result.port).toBe(30010);
@@ -61,7 +62,7 @@ describe("HttpTransportOptionsSchema", () => {
       secure: false,
       passphrase: "test",
       headers: { "X-Custom": "value" },
-      requestTimeoutMs: 5000
+      requestTimeoutMs: 5000,
     });
     expect(result.baseUrl).toBe("http://127.0.0.1:30010");
     expect(result.secure).toBe(false);
@@ -132,11 +133,13 @@ describe("RuntimeConfigSchema", () => {
   });
 
   test("accepts valid nested ws and http options", () => {
-    expect(() => decodeRuntime({
-      transport: "ws",
-      ws: { connectTimeoutMs: 5000, autoReconnect: true },
-      http: { port: 30010 }
-    })).not.toThrow();
+    expect(() =>
+      decodeRuntime({
+        transport: "ws",
+        ws: { connectTimeoutMs: 5000, autoReconnect: true },
+        http: { port: 30010 },
+      }),
+    ).not.toThrow();
   });
 });
 
@@ -162,17 +165,27 @@ describe("RetryPolicySchema", () => {
   });
 
   test("accepts excess fields like shouldRetry callback", () => {
-    expect(() => decode(RetryPolicySchema)({
-      maxAttempts: 3,
-      shouldRetry: () => true
-    }, { onExcessProperty: "ignore" })).not.toThrow();
+    expect(() =>
+      decode(RetryPolicySchema)(
+        {
+          maxAttempts: 3,
+          shouldRetry: () => true,
+        },
+        { onExcessProperty: "ignore" },
+      ),
+    ).not.toThrow();
   });
 
   test("accepts delayMs as number", () => {
-    expect(() => decode(RetryPolicySchema)({
-      maxAttempts: 3,
-      delayMs: 1000
-    }, { onExcessProperty: "ignore" })).not.toThrow();
+    expect(() =>
+      decode(RetryPolicySchema)(
+        {
+          maxAttempts: 3,
+          delayMs: 1000,
+        },
+        { onExcessProperty: "ignore" },
+      ),
+    ).not.toThrow();
   });
 });
 
@@ -184,15 +197,17 @@ describe("UnrealRCOptionsSchema", () => {
   });
 
   test("accepts full options with callbacks", () => {
-    expect(() => decodeOpts({
-      transport: "ws",
-      retry: { maxAttempts: 3 },
-      validateResponses: false,
-      onRequest: () => {},
-      onResponse: () => {},
-      onError: () => {},
-      redactPayload: () => {}
-    })).not.toThrow();
+    expect(() =>
+      decodeOpts({
+        transport: "ws",
+        retry: { maxAttempts: 3 },
+        validateResponses: false,
+        onRequest: () => {},
+        onResponse: () => {},
+        onError: () => {},
+        redactPayload: () => {},
+      }),
+    ).not.toThrow();
   });
 
   test("accepts retry as boolean", () => {
@@ -211,11 +226,13 @@ describe("UnrealRCOptionsSchema", () => {
 
 describe("WatchHealthOptionsSchema", () => {
   test("accepts valid options", () => {
-    expect(() => decode(WatchHealthOptionsSchema)({
-      intervalMs: 5000,
-      unhealthyAfter: 3,
-      timeoutMs: 2000
-    })).not.toThrow();
+    expect(() =>
+      decode(WatchHealthOptionsSchema)({
+        intervalMs: 5000,
+        unhealthyAfter: 3,
+        timeoutMs: 2000,
+      }),
+    ).not.toThrow();
   });
 
   test("accepts empty options", () => {

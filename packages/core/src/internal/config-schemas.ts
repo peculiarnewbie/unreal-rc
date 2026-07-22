@@ -1,9 +1,11 @@
 import { Schema } from "effect";
 
 const PositiveInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1));
-const PositiveNumber = Schema.Number.check(Schema.isGreaterThan(0));
-const NonNegativeNumber = Schema.Number.check(Schema.isGreaterThanOrEqualTo(0));
-const Port = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)).check(Schema.isLessThanOrEqualTo(65535));
+const PositiveNumber = Schema.Finite.check(Schema.isGreaterThan(0));
+const NonNegativeNumber = Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0));
+const Port = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)).check(
+  Schema.isLessThanOrEqualTo(65535),
+);
 
 // ── Transport options ───────────────────────────────────────────────────
 
@@ -30,7 +32,7 @@ export const WebSocketTransportOptionsSchema = Schema.Struct({
   autoReconnect: Schema.optional(Schema.Boolean),
   reconnectInitialDelayMs: Schema.optional(PositiveNumber),
   reconnectMaxDelayMs: Schema.optional(PositiveNumber),
-  reconnectBackoffFactor: Schema.optional(Schema.Number.check(Schema.isGreaterThan(1))),
+  reconnectBackoffFactor: Schema.optional(Schema.Finite.check(Schema.isGreaterThan(1))),
   disconnectedBehavior: Schema.optional(Schema.Literals(["queue", "reject"])),
   maxQueueSize: Schema.optional(PositiveInt),
 });
@@ -58,10 +60,7 @@ export const UnrealRCOptionsSchema = Schema.Struct({
   ws: Schema.optional(WebSocketTransportOptionsSchema),
   http: Schema.optional(HttpTransportOptionsSchema),
   validateResponses: Schema.optional(Schema.Boolean),
-  retry: Schema.optional(Schema.Union([
-    Schema.Boolean,
-    RetryPolicySchema
-  ])),
+  retry: Schema.optional(Schema.Union([Schema.Boolean, RetryPolicySchema])),
 });
 
 export const WatchHealthOptionsSchema = Schema.Struct({

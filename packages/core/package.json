@@ -2,17 +2,23 @@
   "name": "unreal-rc",
   "version": "0.5.3",
   "description": "Typed client for Unreal Engine Remote Control over WebSocket or HTTP",
+  "homepage": "https://unreal-rc.peculiarnewbie.com",
+  "bugs": {
+    "url": "https://github.com/peculiarnewbie/unreal-rc/issues"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/peculiarnewbie/unreal-rc.git",
     "directory": "packages/core"
   },
-  "bugs": {
-    "url": "https://github.com/peculiarnewbie/unreal-rc/issues"
-  },
-  "homepage": "https://unreal-rc.peculiarnewbie.com",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -25,30 +31,26 @@
       "import": "./dist/effect.js"
     }
   },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
-  "sideEffects": false,
-  "scripts": {
-    "clean": "rm -rf dist tsconfig.tsbuildinfo",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "bun test tests",
-    "test:e2e": "node ../../scripts/test-unreal-e2e.ts",
-    "test:all": "bun run test && bun run test:e2e",
-    "pack:check": "npm pack --dry-run",
-    "prepublishOnly": "bun run clean && bun run typecheck && bun run build"
-  },
-  "peerDependencies": {
-    "effect": ">=4.0.0-beta.50 <5"
-  },
-  "devDependencies": {
-    "effect": "4.0.0-beta.59"
-  },
   "publishConfig": {
     "access": "public"
+  },
+  "scripts": {
+    "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true }); rmSync('tsconfig.tsbuildinfo', { force: true });\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "node ../../scripts/test-unreal-e2e.ts",
+    "test:all": "pnpm test && pnpm test:e2e",
+    "pack:check": "pnpm pack --dry-run",
+    "prepublishOnly": "pnpm clean && pnpm typecheck && pnpm build"
+  },
+  "devDependencies": {
+    "effect": "4.0.0-beta.100",
+    "vitest": "^4.1.10"
+  },
+  "peerDependencies": {
+    "effect": ">=4.0.0-beta.100 <5"
   },
   "engines": {
     "node": ">=18"

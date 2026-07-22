@@ -9,7 +9,7 @@ import {
   type ErrorHookContext,
   type InfoResponse,
   type RequestHookContext,
-  type ResponseHookContext
+  type ResponseHookContext,
 } from "../../src/index.js";
 
 const DEFAULT_HOST = "127.0.0.1";
@@ -122,7 +122,7 @@ export const resolveLaunchOptions = (): UnrealLaunchOptions => {
     passphrase: readStringEnv("UNREAL_E2E_PASSPHRASE", DEFAULT_HTTP_PASSPHRASE),
     bootTimeoutMs: getBootTimeoutMs(),
     pollIntervalMs: readNumberEnv("UNREAL_E2E_POLL_INTERVAL_MS", DEFAULT_POLL_INTERVAL_MS),
-    requestTimeoutMs: readNumberEnv("UNREAL_E2E_REQUEST_TIMEOUT_MS", DEFAULT_REQUEST_TIMEOUT_MS)
+    requestTimeoutMs: readNumberEnv("UNREAL_E2E_REQUEST_TIMEOUT_MS", DEFAULT_REQUEST_TIMEOUT_MS),
   };
 };
 
@@ -146,13 +146,13 @@ export const resolveFixtureContract = (): FixtureProtocolContract => {
     functionName: readStringEnv("UNREAL_E2E_FUNCTION_NAME", DEFAULT_FIXTURE_FUNCTION_NAME),
     functionArgumentName: readStringEnv(
       "UNREAL_E2E_FUNCTION_ARGUMENT_NAME",
-      DEFAULT_FIXTURE_FUNCTION_ARGUMENT_NAME
-    )
+      DEFAULT_FIXTURE_FUNCTION_ARGUMENT_NAME,
+    ),
   };
 };
 
 export const createProtocolClients = (
-  options: UnrealLaunchOptions = resolveLaunchOptions()
+  options: UnrealLaunchOptions = resolveLaunchOptions(),
 ): ProtocolClients => {
   const diagnostics = createProtocolDiagnostics();
   const http = new UnrealRC({
@@ -169,7 +169,7 @@ export const createProtocolClients = (
     },
     onError: (context) => {
       diagnostics.recordError("http", context);
-    }
+    },
   });
   const ws = new UnrealRC({
     transport: "ws",
@@ -184,7 +184,7 @@ export const createProtocolClients = (
     },
     onError: (context) => {
       diagnostics.recordError("ws", context);
-    }
+    },
   });
 
   return {
@@ -194,19 +194,20 @@ export const createProtocolClients = (
     dispose(): void {
       http.dispose();
       ws.dispose();
-    }
+    },
   };
 };
 
 export const formatLaunchContext = (handle: LaunchFixtureHandle): string => {
-  const recentLogs = handle.logs.length > 0 ? handle.logs.join("\n") : "(no stdout/stderr captured)";
+  const recentLogs =
+    handle.logs.length > 0 ? handle.logs.join("\n") : "(no stdout/stderr captured)";
 
   return [
     `Launch command: ${handle.command}`,
     `Launch args: ${handle.args.join(" ")}`,
     `Fixture project: ${handle.uprojectPath}`,
     "Recent Unreal output:",
-    recentLogs
+    recentLogs,
   ].join("\n");
 };
 
@@ -230,7 +231,7 @@ export const formatE2eFailure = (options: {
     details,
     "Recent protocol events:",
     options.diagnostics.formatRecentEvents(),
-    formatLaunchContext(options.handle)
+    formatLaunchContext(options.handle),
   ].join("\n");
 };
 
@@ -248,7 +249,7 @@ export const launchFixtureProject = (): LaunchFixtureHandle => {
   const child = spawn(launchOptions.editorBin, launchArgs, {
     cwd: fixture.fixtureDir,
     env: process.env,
-    stdio: ["ignore", "pipe", "pipe"]
+    stdio: ["ignore", "pipe", "pipe"],
   });
 
   child.stdout?.setEncoding("utf8");
@@ -275,20 +276,20 @@ export const launchFixtureProject = (): LaunchFixtureHandle => {
     async stop(): Promise<void> {
       await requestEditorExit(host, httpPort);
       await stopChildProcess(child);
-    }
+    },
   };
 };
 
 export const waitForRemoteControlHttp = async (
   handle: LaunchFixtureHandle,
-  options: UnrealLaunchOptions = resolveLaunchOptions()
+  options: UnrealLaunchOptions = resolveLaunchOptions(),
 ): Promise<RemoteControlHttpStatus> => {
   const client = new UnrealRC({
     transport: "http",
     host: options.host,
     port: options.httpPort,
     ...(options.passphrase !== undefined ? { passphrase: options.passphrase } : {}),
-    retry: false
+    retry: false,
   });
 
   return await waitForRemoteControl(handle, {
@@ -299,19 +300,19 @@ export const waitForRemoteControlHttp = async (
     bootTimeoutMs: options.bootTimeoutMs,
     pollIntervalMs: options.pollIntervalMs,
     requestTimeoutMs: options.requestTimeoutMs,
-    transportLabel: "HTTP"
+    transportLabel: "HTTP",
   });
 };
 
 export const waitForRemoteControlWs = async (
   handle: LaunchFixtureHandle,
-  options: UnrealLaunchOptions = resolveLaunchOptions()
+  options: UnrealLaunchOptions = resolveLaunchOptions(),
 ): Promise<RemoteControlWsStatus> => {
   const client = new UnrealRC({
     transport: "ws",
     host: options.host,
     port: options.wsPort,
-    retry: false
+    retry: false,
   });
 
   const status = await waitForRemoteControl(handle, {
@@ -322,13 +323,13 @@ export const waitForRemoteControlWs = async (
     bootTimeoutMs: options.bootTimeoutMs,
     pollIntervalMs: options.pollIntervalMs,
     requestTimeoutMs: options.requestTimeoutMs,
-    transportLabel: "WebSocket"
+    transportLabel: "WebSocket",
   });
 
   return {
     endpointUrl: status.endpointUrl.replace("/remote/info", ""),
     attempts: status.attempts,
-    portReachable: status.portReachable
+    portReachable: status.portReachable,
   };
 };
 
@@ -340,13 +341,13 @@ const requestEditorExit = async (host: string, httpPort: number): Promise<void> 
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        ...(passphrase !== undefined ? { Passphrase: passphrase } : {})
+        ...(passphrase !== undefined ? { Passphrase: passphrase } : {}),
       },
       body: JSON.stringify({
         objectPath: "/Script/Engine.Default__KismetSystemLibrary",
-        functionName: "QuitEditor"
+        functionName: "QuitEditor",
       }),
-      signal: AbortSignal.timeout(DEFAULT_REQUEST_TIMEOUT_MS)
+      signal: AbortSignal.timeout(DEFAULT_REQUEST_TIMEOUT_MS),
     });
   } catch {}
 };
@@ -434,7 +435,7 @@ const readArgsEnv = (name: string): string[] => {
     parsed = JSON.parse(value);
   } catch (error) {
     throw new Error(
-      `${name} must be a JSON array of strings. Received: ${value}. ${error instanceof Error ? error.message : String(error)}`
+      `${name} must be a JSON array of strings. Received: ${value}. ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 
@@ -495,7 +496,7 @@ const waitForRemoteControl = async (
     pollIntervalMs: number;
     requestTimeoutMs: number;
     transportLabel: string;
-  }
+  },
 ): Promise<RemoteControlHttpStatus> => {
   const deadline = Date.now() + options.bootTimeoutMs;
   let attempts = 0;
@@ -513,8 +514,8 @@ const waitForRemoteControl = async (
         throw new Error(
           [
             `Unreal exited before Remote Control became available (exit code ${handle.child.exitCode}).`,
-            formatLaunchContext(handle)
-          ].join("\n")
+            formatLaunchContext(handle),
+          ].join("\n"),
         );
       }
 
@@ -522,21 +523,21 @@ const waitForRemoteControl = async (
         throw new Error(
           [
             `Unreal exited before Remote Control became available (signal ${handle.child.signalCode}).`,
-            formatLaunchContext(handle)
-          ].join("\n")
+            formatLaunchContext(handle),
+          ].join("\n"),
         );
       }
 
       try {
         const info = await options.client.info({
           timeoutMs: options.requestTimeoutMs,
-          retry: false
+          retry: false,
         });
         return {
           endpointUrl: options.endpointUrl,
           attempts,
           portReachable: true,
-          info
+          info,
         };
       } catch (error) {
         lastError = error;
@@ -555,8 +556,8 @@ const waitForRemoteControl = async (
       `Timed out waiting ${options.bootTimeoutMs}ms for Unreal Remote Control ${options.transportLabel} at ${options.endpointUrl}.`,
       `Last probe error: ${detail}`,
       `TCP port reachable during boot: ${portReachable ? "yes" : "no"}`,
-      formatLaunchContext(handle)
-    ].join("\n")
+      formatLaunchContext(handle),
+    ].join("\n"),
   );
 };
 
@@ -566,20 +567,22 @@ const discoverUnrealEditor = (uprojectPath: string | undefined): UnrealEditorIns
 
   if (requestedBin) {
     if (!existsSync(requestedBin)) {
-      throw new Error(`UNREAL_EDITOR_BIN points to "${requestedBin}", but that file does not exist.`);
+      throw new Error(
+        `UNREAL_EDITOR_BIN points to "${requestedBin}", but that file does not exist.`,
+      );
     }
 
     return {
       editorBin: requestedBin,
       source: "env",
-      ...(engineAssociation !== undefined ? { engineAssociation } : {})
+      ...(engineAssociation !== undefined ? { engineAssociation } : {}),
     };
   }
 
   const candidates = [
     ...discoverFromEngineRoot(engineAssociation),
     ...discoverFromPath(engineAssociation),
-    ...discoverFromCommonLocations(engineAssociation)
+    ...discoverFromCommonLocations(engineAssociation),
   ];
 
   const uniqueCandidates = dedupeInstalls(candidates);
@@ -587,7 +590,9 @@ const discoverUnrealEditor = (uprojectPath: string | undefined): UnrealEditorIns
     throw new Error(buildEditorNotFoundMessage(engineAssociation));
   }
 
-  const exactMatch = engineAssociation ? uniqueCandidates.find((candidate) => isCompatible(candidate, engineAssociation)) : undefined;
+  const exactMatch = engineAssociation
+    ? uniqueCandidates.find((candidate) => isCompatible(candidate, engineAssociation))
+    : undefined;
   return exactMatch ?? uniqueCandidates[0];
 };
 
@@ -629,8 +634,8 @@ const createProtocolDiagnostics = (): ProtocolDiagnostics & {
           `[${transport}] request`,
           `${context.verb} ${context.url}`,
           `attempt=${context.attempt}`,
-          `body=${formatPayload(context.body)}`
-        ].join(" ")
+          `body=${formatPayload(context.body)}`,
+        ].join(" "),
       );
     },
     recordResponse(transport: string, context: ResponseHookContext): void {
@@ -642,8 +647,8 @@ const createProtocolDiagnostics = (): ProtocolDiagnostics & {
           `status=${context.statusCode ?? "n/a"}`,
           `requestId=${context.requestId ?? "n/a"}`,
           `durationMs=${context.durationMs}`,
-          `body=${formatPayload(context.body)}`
-        ].join(" ")
+          `body=${formatPayload(context.body)}`,
+        ].join(" "),
       );
     },
     recordError(transport: string, context: ErrorHookContext): void {
@@ -657,8 +662,8 @@ const createProtocolDiagnostics = (): ProtocolDiagnostics & {
           `durationMs=${context.durationMs}`,
           `kind=${context.error.kind}`,
           `message=${context.error.message}`,
-          `errorBody=${formatPayload(context.errorBody)}`
-        ].join(" ")
+          `errorBody=${formatPayload(context.errorBody)}`,
+        ].join(" "),
       );
     },
     formatRecentEvents(limit = 20): string {
@@ -667,7 +672,7 @@ const createProtocolDiagnostics = (): ProtocolDiagnostics & {
       }
 
       return events.slice(-limit).join("\n");
-    }
+    },
   };
 };
 
@@ -722,7 +727,7 @@ const discoverFromEngineRoot = (engineAssociation: string | undefined): UnrealEd
   const editorBin = resolveEditorFromRoot(engineRoot);
   if (!editorBin) {
     throw new Error(
-      `UNREAL_ENGINE_ROOT points to "${engineRoot}", but no Unreal editor binary was found under that root.`
+      `UNREAL_ENGINE_ROOT points to "${engineRoot}", but no Unreal editor binary was found under that root.`,
     );
   }
 
@@ -731,8 +736,8 @@ const discoverFromEngineRoot = (engineAssociation: string | undefined): UnrealEd
       editorBin,
       source: "engine_root",
       engineVersion: readEngineVersionFromEditor(editorBin),
-      ...(engineAssociation !== undefined ? { engineAssociation } : {})
-    }
+      ...(engineAssociation !== undefined ? { engineAssociation } : {}),
+    },
   ];
 };
 
@@ -752,7 +757,7 @@ const discoverFromPath = (engineAssociation: string | undefined): UnrealEditorIn
         editorBin,
         source: "path",
         engineVersion: readEngineVersionFromEditor(editorBin),
-        ...(engineAssociation !== undefined ? { engineAssociation } : {})
+        ...(engineAssociation !== undefined ? { engineAssociation } : {}),
       });
     }
   }
@@ -760,7 +765,9 @@ const discoverFromPath = (engineAssociation: string | undefined): UnrealEditorIn
   return installs;
 };
 
-const discoverFromCommonLocations = (engineAssociation: string | undefined): UnrealEditorInstall[] => {
+const discoverFromCommonLocations = (
+  engineAssociation: string | undefined,
+): UnrealEditorInstall[] => {
   const installs: UnrealEditorInstall[] = [];
 
   for (const root of getCommonEngineRoots()) {
@@ -773,7 +780,7 @@ const discoverFromCommonLocations = (engineAssociation: string | undefined): Unr
       editorBin,
       source: "common",
       engineVersion: readEngineVersionFromEditor(editorBin),
-      ...(engineAssociation !== undefined ? { engineAssociation } : {})
+      ...(engineAssociation !== undefined ? { engineAssociation } : {}),
     });
   }
 
@@ -782,10 +789,7 @@ const discoverFromCommonLocations = (engineAssociation: string | undefined): Unr
 
 const getCommonEngineRoots = (): string[] => {
   if (process.platform === "win32") {
-    const roots = [
-      process.env["ProgramFiles"],
-      process.env["ProgramFiles(x86)"]
-    ]
+    const roots = [process.env["ProgramFiles"], process.env["ProgramFiles(x86)"]]
       .filter((entry): entry is string => Boolean(entry))
       .map((entry) => join(entry, "Epic Games"));
 
@@ -793,10 +797,7 @@ const getCommonEngineRoots = (): string[] => {
   }
 
   if (process.platform === "darwin") {
-    return collectEpicVersionedRoots([
-      "/Users/Shared/Epic Games",
-      "/Applications/Epic Games"
-    ]);
+    return collectEpicVersionedRoots(["/Users/Shared/Epic Games", "/Applications/Epic Games"]);
   }
 
   const home = process.env.HOME;
@@ -807,7 +808,7 @@ const getCommonEngineRoots = (): string[] => {
     "/opt/EpicGames",
     "/opt/unreal-engine",
     "/opt/UnrealEngine",
-    "/usr/local/share/UnrealEngine"
+    "/usr/local/share/UnrealEngine",
   ].filter((entry): entry is string => Boolean(entry));
 
   return [...collectEpicVersionedRoots(roots), ...roots];
@@ -842,18 +843,26 @@ const resolveEditorFromRoot = (root: string): string | undefined => {
     process.platform === "win32"
       ? [
           join("Engine", "Binaries", "Win64", "UnrealEditor.exe"),
-          join("Engine", "Binaries", "Win64", "UE4Editor.exe")
+          join("Engine", "Binaries", "Win64", "UE4Editor.exe"),
         ]
       : process.platform === "darwin"
         ? [
-            join("Engine", "Binaries", "Mac", "UnrealEditor.app", "Contents", "MacOS", "UnrealEditor"),
+            join(
+              "Engine",
+              "Binaries",
+              "Mac",
+              "UnrealEditor.app",
+              "Contents",
+              "MacOS",
+              "UnrealEditor",
+            ),
             join("Engine", "Binaries", "Mac", "UE4Editor.app", "Contents", "MacOS", "UE4Editor"),
             join("Engine", "Binaries", "Mac", "UnrealEditor"),
-            join("Engine", "Binaries", "Mac", "UE4Editor")
+            join("Engine", "Binaries", "Mac", "UE4Editor"),
           ]
         : [
             join("Engine", "Binaries", "Linux", "UnrealEditor"),
-            join("Engine", "Binaries", "Linux", "UE4Editor")
+            join("Engine", "Binaries", "Linux", "UE4Editor"),
           ];
 
   for (const suffix of candidateSuffixes) {
@@ -878,7 +887,8 @@ const readEngineAssociation = (uprojectPath: string | undefined): string | undef
   try {
     const raw = readFileSync(uprojectPath, "utf8");
     const parsed = JSON.parse(raw) as { EngineAssociation?: unknown };
-    return typeof parsed.EngineAssociation === "string" && parsed.EngineAssociation.trim().length > 0
+    return typeof parsed.EngineAssociation === "string" &&
+      parsed.EngineAssociation.trim().length > 0
       ? parsed.EngineAssociation.trim()
       : undefined;
   } catch {
@@ -887,7 +897,12 @@ const readEngineAssociation = (uprojectPath: string | undefined): string | undef
 };
 
 const readEngineVersionFromEditor = (editorBin: string): string | undefined => {
-  const versionFile = join(resolveEngineRootFromEditor(editorBin), "Engine", "Build", "Build.version");
+  const versionFile = join(
+    resolveEngineRootFromEditor(editorBin),
+    "Engine",
+    "Build",
+    "Build.version",
+  );
   if (!existsSync(versionFile)) {
     return undefined;
   }
@@ -996,6 +1011,6 @@ const buildEditorNotFoundMessage = (engineAssociation: string | undefined): stri
   return [
     expected,
     "Set UNREAL_EDITOR_BIN to the editor executable, or set UNREAL_ENGINE_ROOT to an engine root.",
-    "Supported auto-discovery sources: UNREAL_ENGINE_ROOT, PATH, and common Epic/Unreal install directories."
+    "Supported auto-discovery sources: UNREAL_ENGINE_ROOT, PATH, and common Epic/Unreal install directories.",
   ].join(" ");
 };

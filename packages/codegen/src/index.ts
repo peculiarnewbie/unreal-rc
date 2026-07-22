@@ -82,9 +82,7 @@ function resolveConfig(config: CodegenConfig): ResolvedConfig {
 
   if (shouldExtract) {
     if (!config.engineDir || !config.projectFile || !config.target) {
-      throw new Error(
-        "When extract is true, engineDir, projectFile, and target are required.",
-      );
+      throw new Error("When extract is true, engineDir, projectFile, and target are required.");
     }
     engineDir = resolve(config.engineDir);
     projectFile = resolve(config.projectFile);
@@ -94,9 +92,7 @@ function resolveConfig(config: CodegenConfig): ResolvedConfig {
     intermediateDir = paths.intermediateDir;
   } else {
     if (!config.intermediateDir) {
-      throw new Error(
-        "When extract is false, intermediateDir is required.",
-      );
+      throw new Error("When extract is false, intermediateDir is required.");
     }
     intermediateDir = resolve(config.intermediateDir);
     engineDir = config.engineDir ?? "";

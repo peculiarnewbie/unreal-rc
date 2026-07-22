@@ -4,28 +4,31 @@ Guidance for coding agents working in `unreal-rc`.
 
 ## Project Facts
 
-- Bun workspace monorepo.
+- pnpm workspace monorepo.
 - Active implementation package: `packages/core` (`unreal-rc`).
 - Source lives in `packages/core/src`; tests live in `packages/core/tests`; build output is `packages/core/dist`.
-- TypeScript ESM/NodeNext package. Use explicit `.js` suffixes for relative TS imports.
+- TypeScript ESM/NodeNext package (TypeScript 7 / Go-native `tsc`). Use explicit `.js` suffixes for relative TS imports.
 - Runtime validation uses Effect `Schema`.
+- Lint/format with `oxlint` / `oxfmt`; tests with Vitest.
 
 ## Commands
 
 Run from repo root unless package-local iteration is clearer.
 
-- Install: `bun install`
-- Typecheck: `bun run typecheck`
-- Build: `bun run build`
-- Test: `bun run test`
-- E2E tests: `bun run test:e2e`
-- Package dry run: `bun run pack:core`
-- Clean: `bun run clean`
+- Install: `pnpm install`
+- Typecheck: `pnpm typecheck`
+- Build: `pnpm build`
+- Test: `pnpm test`
+- E2E tests: `pnpm test:e2e`
+- Lint: `pnpm lint`
+- Format: `pnpm fmt`
+- Package dry run: `pnpm pack:core`
+- Clean: `pnpm clean`
 
 Minimum validation:
 
-- Normal code changes: `bun run typecheck`, `bun run build`, and relevant `bun run test`
-- Packaging changes: also run `bun run pack:core`
+- Normal code changes: `pnpm typecheck`, `pnpm build`, and relevant `pnpm test`
+- Packaging changes: also run `pnpm pack:core`
 - E2E/protocol changes: run relevant e2e tests when feasible
 
 ## Core Rules
@@ -52,6 +55,7 @@ Minimum validation:
 - Treat branded public types and discriminated replacements for existing boolean state shapes as breaking unless introduced additively.
 
 <!-- effect-solutions:start -->
+
 ## Effect Best Practices
 
 **IMPORTANT:** Always consult effect-solutions before writing Effect code.

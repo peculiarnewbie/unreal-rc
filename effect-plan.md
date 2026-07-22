@@ -28,6 +28,7 @@ serve positional overloads (`CallOptions`, `GetPropertyOptions`, `SetPropertyOpt
 have been removed.
 
 Promise API shape:
+
 ```ts
 await ue.call({ objectPath, functionName, parameters, transaction, timeoutMs, retry });
 await ue.getProperty({ objectPath, propertyName, access, timeoutMs, retry });
@@ -73,10 +74,12 @@ Effect API (future Phase 4) will use the same object-arg shape — no positional
 Refactor the private `send(...)` method into two layers:
 
 1. **`sendEffect(...)`** — pure Effect layer:
+
    ```ts
    sendEffect<T>(verb, url, body, responseSchema, options):
      Effect.Effect<{ decoded: T; statusCode; requestId; rawBody }, TransportError, Transport>
    ```
+
    Handles: transport dispatch, schema decode (or skip if `validateResponses: false`), retry wrapping.
    Retry operates on tagged `TransportError`, not public `TransportRequestError`.
    **Hooks remain outside the Effect pipeline** — they fire in the Promise wrapper (see below).
@@ -110,7 +113,7 @@ const ue = new UnrealRC();
 await ue.call({ objectPath, functionName, parameters, transaction, timeoutMs, retry });
 
 // Effect — same args type, returns Effect instead of Promise
-yield* ue.effect.call({ objectPath, functionName, parameters, transaction, timeoutMs, retry });
+yield * ue.effect.call({ objectPath, functionName, parameters, transaction, timeoutMs, retry });
 ```
 
 **Implementation:**
@@ -121,6 +124,7 @@ yield* ue.effect.call({ objectPath, functionName, parameters, transaction, timeo
    `info`, `event`, `thumbnail`, `batch`, `ping`, `pendingRequests`, `dispose`.
 3. **Single object-arg signature per method** — no positional overloads. Uses existing `*Args` types.
 4. Promise methods delegate to Effect methods:
+
    ```ts
    async call(args: CallArgs): Promise<ObjectCallResponse> {
      return this.runtime.runPromise(
@@ -128,16 +132,19 @@ yield* ue.effect.call({ objectPath, functionName, parameters, transaction, timeo
      );
    }
    ```
+
    This preserves the existing hook-firing wrapper around `runPromise`.
 
 5. **BatchBuilder in Effect context:** the `batch` method keeps the callback-based builder pattern
    since it's inherently imperative (builder accumulates requests synchronously). Both Promise and
    Effect APIs share the same signature:
+
    ```ts
-   yield* ue.effect.batch((b) => {
-     b.call({ objectPath, functionName, parameters });
-     b.getProperty({ objectPath, propertyName });
-   });
+   yield *
+     ue.effect.batch((b) => {
+       b.call({ objectPath, functionName, parameters });
+       b.getProperty({ objectPath, propertyName });
+     });
    ```
 
 6. Add type tests:
@@ -152,15 +159,17 @@ yield* ue.effect.call({ objectPath, functionName, parameters, transaction, timeo
 Add public APIs for routes not wrapped by convenience methods.
 
 **Promise API:**
+
 ```ts
 await ue.request({ verb: "PUT", url: "/remote/object/call", body, responseSchema });
 await ue.requestRaw({ verb: "PUT", url: "/remote/object/call", body });
 ```
 
 **Effect API:**
+
 ```ts
-yield* ue.effect.request({ verb: "PUT", url: "/remote/object/call", body, responseSchema });
-yield* ue.effect.requestRaw({ verb: "PUT", url: "/remote/object/call", body });
+yield * ue.effect.request({ verb: "PUT", url: "/remote/object/call", body, responseSchema });
+yield * ue.effect.requestRaw({ verb: "PUT", url: "/remote/object/call", body });
 ```
 
 **Details:**
@@ -185,13 +194,15 @@ yield* ue.effect.requestRaw({ verb: "PUT", url: "/remote/object/call", body });
 Add `callReturn` — calls `/remote/object/call` and decodes only the `ReturnValue` field.
 
 **Promise API:**
+
 ```ts
 await ue.callReturn({ objectPath, functionName, parameters, returnSchema: MySchema });
 ```
 
 **Effect API:**
+
 ```ts
-yield* ue.effect.callReturn({ objectPath, functionName, parameters, returnSchema: MySchema });
+yield * ue.effect.callReturn({ objectPath, functionName, parameters, returnSchema: MySchema });
 ```
 
 **Behavior:**
@@ -218,16 +229,19 @@ Expose an injectable service for full Effect apps.
 **Implementation:**
 
 1. Start with a `Context.Tag`:
+
    ```ts
    export class UnrealRCService extends Context.Tag("UnrealRCService")<
      UnrealRCService,
-     UnrealRCEffectApi  // same shape as ue.effect.* (request methods only)
+     UnrealRCEffectApi // same shape as ue.effect.* (request methods only)
    >() {}
    ```
+
    `UnrealRCEffectApi` scopes to the request methods (`call`, `getProperty`, etc.).
    Lifecycle concerns (`ping`, `watchHealth`, `dispose`) are managed by the Layer.
 
 2. Add `UnrealRCLive(options)` Layer using `Effect.acquireRelease` for proper resource scoping:
+
    ```ts
    export const UnrealRCLive = (options: UnrealRCOptions) =>
      Layer.scoped(UnrealRCService, Effect.gen(function* () { ... }));
@@ -236,6 +250,7 @@ Expose an injectable service for full Effect apps.
 3. Add `UnrealRCTest` helper Layer for tests.
 
 4. Document use with `Effect.provide`:
+
    ```ts
    const program = Effect.gen(function* () {
      const ue = yield* UnrealRCService;
@@ -268,10 +283,11 @@ Expose an injectable service for full Effect apps.
 ## Phase 9: Documentation
 
 Update `packages/core/README.md` with:
+
 1. Existing Promise examples (updated to object-arg form).
 2. Effect examples:
    ```ts
-   const result = yield* ue.effect.call({ objectPath, functionName, parameters });
+   const result = yield * ue.effect.call({ objectPath, functionName, parameters });
    ```
 3. Error handling:
    ```ts

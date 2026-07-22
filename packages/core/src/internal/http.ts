@@ -4,9 +4,14 @@ import {
   DecodeError,
   HttpStatusError,
   TimeoutError,
-  type TransportError
+  type TransportError,
 } from "./errors.js";
-import { Transport, type PendingRequestInfo, type TransportRequest, type TransportResponse } from "./transport.js";
+import {
+  Transport,
+  type PendingRequestInfo,
+  type TransportRequest,
+  type TransportResponse,
+} from "./transport.js";
 import { HttpTransportOptionsSchema } from "./config-schemas.js";
 import type { HttpTransportOptions } from "./config-schemas.js";
 
@@ -55,7 +60,7 @@ export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Lay
           verb: req.verb,
           url: req.url,
           startedAt: Date.now(),
-          timeoutMs
+          timeoutMs,
         });
 
         if (timeoutMs > 0) {
@@ -78,7 +83,7 @@ export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Lay
         const requestInit: RequestInit = {
           method: req.verb,
           headers: reqHeaders,
-          signal: controller.signal
+          signal: controller.signal,
         };
 
         if (requestBody !== undefined) {
@@ -97,7 +102,7 @@ export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Lay
                 transport: "http",
                 verb: req.verb,
                 url: req.url,
-                details: payload
+                details: payload,
               });
             }
 
@@ -114,7 +119,7 @@ export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Lay
                   message: `HTTP request timed out after ${timeoutMs}ms`,
                   transport: "http",
                   verb: req.verb,
-                  url: req.url
+                  url: req.url,
                 });
               }
             }
@@ -122,7 +127,7 @@ export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Lay
             throw new ConnectError({
               message: "HTTP request failed",
               transport: "http",
-              cause: error
+              cause: error,
             });
           } finally {
             if (timer) clearTimeout(timer);
@@ -132,19 +137,21 @@ export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Lay
 
         run().then(
           (response) => resume(Effect.succeed(response)),
-          (error) => resume(Effect.fail(error as TransportError))
+          (error) => resume(Effect.fail(error as TransportError)),
         );
       }),
 
     pendingRequests: Effect.sync((): ReadonlyArray<PendingRequestInfo> => {
       const now = Date.now();
-      return [...activeRequests.values()].map((e): PendingRequestInfo => ({
-        requestId: undefined,
-        verb: e.verb,
-        url: e.url,
-        elapsedMs: now - e.startedAt,
-        timeoutMs: e.timeoutMs
-      }));
+      return [...activeRequests.values()].map(
+        (e): PendingRequestInfo => ({
+          requestId: undefined,
+          verb: e.verb,
+          url: e.url,
+          elapsedMs: now - e.startedAt,
+          timeoutMs: e.timeoutMs,
+        }),
+      );
     }),
 
     dispose: Effect.sync(() => {
@@ -152,7 +159,7 @@ export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Lay
         controller.abort("dispose");
       }
       activeRequests.clear();
-    })
+    }),
   });
 };
 
@@ -161,10 +168,7 @@ const hasHeaderIgnoreCase = (headers: Record<string, string>, name: string): boo
   return Object.keys(headers).some((key) => key.toLowerCase() === normalizedName);
 };
 
-const parsePayload = async (
-  response: Response,
-  req: TransportRequest
-): Promise<unknown> => {
+const parsePayload = async (response: Response, req: TransportRequest): Promise<unknown> => {
   const raw = await response.arrayBuffer();
   if (raw.byteLength === 0) {
     return undefined;
@@ -184,12 +188,16 @@ const parsePayload = async (
         verb: req.verb,
         url: req.url,
         details: text,
-        cause: error
+        cause: error,
       });
     }
   }
 
-  if (normalized.startsWith("text/") || normalized.includes("xml") || normalized.includes("javascript")) {
+  if (
+    normalized.startsWith("text/") ||
+    normalized.includes("xml") ||
+    normalized.includes("javascript")
+  ) {
     return new TextDecoder().decode(raw);
   }
 

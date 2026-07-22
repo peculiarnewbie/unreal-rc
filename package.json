@@ -2,29 +2,30 @@
   "name": "unreal-rc-monorepo",
   "private": true,
   "type": "module",
-  "packageManager": "bun@1.2.21",
-  "workspaces": [
-    "packages/*"
-  ],
   "scripts": {
-    "build": "bun run --cwd packages/core build",
-    "typecheck": "bun run --cwd packages/core typecheck",
-    "test": "bun run --cwd packages/core test",
+    "build": "pnpm --filter unreal-rc build",
+    "typecheck": "pnpm --filter unreal-rc typecheck",
+    "test": "pnpm --filter unreal-rc test",
     "test:e2e": "node scripts/test-unreal-e2e.ts",
-    "test:all": "bun run test && bun run test:e2e",
-    "clean": "bun run --cwd packages/core clean",
-    "pack:core": "bun run --cwd packages/core pack:check",
-    "publish": "bun run pack:core && npm publish -w packages/core",
+    "test:all": "pnpm test && pnpm test:e2e",
+    "clean": "pnpm --filter unreal-rc clean",
+    "pack:core": "pnpm --filter unreal-rc pack:check",
+    "publish": "pnpm pack:core && pnpm --filter unreal-rc publish",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
     "fixture:init": "node scripts/unreal-fixture.ts init",
     "fixture:status": "node scripts/unreal-fixture.ts status",
     "fixture:update": "node scripts/unreal-fixture.ts update",
-    "prepare": "effect-language-service patch"
+    "prepare": "effect-tsgo patch"
   },
   "devDependencies": {
-    "@effect/language-service": "^0.82.0",
-    "@types/bun": "^1.3.9",
+    "@effect/tsgo": "^0.24.2",
     "@types/node": "^25.5.0",
-    "@typescript/native-preview": "^7.0.0-dev.20260312.1",
-    "typescript": "^5.9.2"
-  }
+    "oxfmt": "^0.60.0",
+    "oxlint": "^1.75.0",
+    "typescript": "^7.0.2"
+  },
+  "packageManager": "pnpm@11.15.1"
 }

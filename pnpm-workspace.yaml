@@ -1,0 +1,9 @@
+packages:
+  - "packages/*"
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - oxlint
+  - oxfmt
+  - "@oxlint/*"
+  - "@oxfmt/*"

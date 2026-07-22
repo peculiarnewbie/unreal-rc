@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { TransportRequestError } from "../../src/index.js";
 import {
   acquireFixture,
@@ -8,7 +8,7 @@ import {
   getBootTimeoutMs,
   resolveFixtureContract,
   resolveLaunchOptions,
-  waitForRemoteControlHttp
+  waitForRemoteControlHttp,
 } from "./setup.js";
 
 const errorPathTest = process.env.UNREAL_E2E === "1" ? test : test.skip;
@@ -23,7 +23,7 @@ errorPathTest(
     let currentStep = "wait for Remote Control HTTP";
     const requestOptions = {
       timeoutMs: launchOptions.requestTimeoutMs,
-      retry: false
+      retry: false,
     } as const;
 
     const bogusObjectPath =
@@ -53,7 +53,7 @@ errorPathTest(
         await clients.http.call({
           objectPath: contract.objectPath,
           functionName: bogusFunction,
-          ...requestOptions
+          ...requestOptions,
         });
         // If Unreal returns 200, that's unexpected but not a test framework bug
         expect(true).toBe(true);
@@ -71,7 +71,7 @@ errorPathTest(
           objectPath: bogusObjectPath,
           functionName: contract.functionName,
           parameters: { [contract.functionArgumentName]: 1 },
-          ...requestOptions
+          ...requestOptions,
         });
         expect(true).toBe(true);
       } catch (error) {
@@ -88,7 +88,7 @@ errorPathTest(
         const value = await clients.http.getProperty({
           objectPath: contract.objectPath,
           propertyName: bogusProperty,
-          ...requestOptions
+          ...requestOptions,
         });
         // If it returns without error, the value should be undefined/null
         expect(value === undefined || value === null).toBe(true);
@@ -105,7 +105,7 @@ errorPathTest(
         await clients.ws.call({
           objectPath: contract.objectPath,
           functionName: bogusFunction,
-          ...requestOptions
+          ...requestOptions,
         });
         expect(true).toBe(true);
       } catch (error) {
@@ -121,13 +121,13 @@ errorPathTest(
           handle,
           diagnostics: clients.diagnostics,
           contract,
-          launchOptions
-        })
+          launchOptions,
+        }),
       );
     } finally {
       clients.dispose();
       await releaseFixture();
     }
   },
-  getBootTimeoutMs() + 60_000
+  getBootTimeoutMs() + 60_000,
 );

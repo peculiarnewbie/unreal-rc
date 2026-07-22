@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { TransportRequestError, toTransportRequestError } from "../src/index.js";
 
 describe("TransportRequestError", () => {
@@ -12,7 +12,7 @@ describe("TransportRequestError", () => {
       url: "/remote/object/call",
       transport: "http",
       requestId: 7,
-      cause
+      cause,
     });
 
     expect(error.name).toBe("TransportRequestError");
@@ -32,7 +32,7 @@ describe("TransportRequestError", () => {
       kind: "connect",
       verb: "GET",
       url: "/remote/info",
-      transport: "ws"
+      transport: "ws",
     });
 
     expect(error).toBeInstanceOf(TransportRequestError);

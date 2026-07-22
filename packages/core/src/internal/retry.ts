@@ -19,23 +19,26 @@ export const defaultShouldRetry = (error: TransportError): boolean => {
 
 export const withRetry = <A, R>(
   effect: Effect.Effect<A, TransportError, R>,
-  options: {
-    maxAttempts: number;
-    baseDelayMs: number;
-    shouldRetry?: ((error: TransportError) => boolean) | undefined;
-  } | false
+  options:
+    | {
+        maxAttempts: number;
+        baseDelayMs: number;
+        shouldRetry?: ((error: TransportError) => boolean) | undefined;
+      }
+    | false,
 ): Effect.Effect<A, TransportError, R> => {
   if (options === false || options.maxAttempts <= 1) {
     return effect;
   }
 
   const check = options.shouldRetry ?? defaultShouldRetry;
-  const schedule = Schedule.exponential(`${options.baseDelayMs} millis`, 2).pipe(
-    Schedule.take(options.maxAttempts - 1)
-  );
+  const schedule = Schedule.max([
+    Schedule.exponential(`${options.baseDelayMs} millis`, 2),
+    Schedule.recurs(options.maxAttempts - 1),
+  ]);
 
   return Effect.retry(effect, {
     schedule,
-    while: check
+    while: check,
   });
 };

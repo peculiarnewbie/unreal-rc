@@ -19,12 +19,25 @@ export function deriveEnginePaths(
 ): EnginePaths {
   const projectDir = dirname(resolve(projectFile));
   return {
-    ubtDll: join(engineDir, "Engine", "Binaries", "DotNET", "UnrealBuildTool", "UnrealBuildTool.dll"),
+    ubtDll: join(
+      engineDir,
+      "Engine",
+      "Binaries",
+      "DotNET",
+      "UnrealBuildTool",
+      "UnrealBuildTool.dll",
+    ),
     buildUbtScript: join(engineDir, "Engine", "Build", "BatchFiles", "BuildUBT.bat"),
     exporterSource: join(
       engineDir,
-      "Engine", "Source", "Programs", "Shared",
-      "EpicGames.UHT", "Exporters", "Json", "UhtJsonExporter.cs",
+      "Engine",
+      "Source",
+      "Programs",
+      "Shared",
+      "EpicGames.UHT",
+      "Exporters",
+      "Json",
+      "UhtJsonExporter.cs",
     ),
     projectDir,
     intermediateDir: join(projectDir, "Intermediate", "Build", platform, "UnrealEditor", "Inc"),
@@ -37,7 +50,7 @@ export function validateExtractPreconditions(paths: EnginePaths): void {
   if (!existsSync(paths.ubtDll)) {
     throw new Error(
       `UnrealBuildTool not found at: ${paths.ubtDll}\n` +
-      `Ensure engineDir points to a built Unreal Engine source tree.`,
+        `Ensure engineDir points to a built Unreal Engine source tree.`,
     );
   }
 
@@ -46,7 +59,7 @@ export function validateExtractPreconditions(paths: EnginePaths): void {
   } catch {
     throw new Error(
       "dotnet CLI not found on PATH. " +
-      "Install the .NET SDK (https://dotnet.microsoft.com/download).",
+        "Install the .NET SDK (https://dotnet.microsoft.com/download).",
     );
   }
 }
@@ -55,7 +68,10 @@ export function validateExtractPreconditions(paths: EnginePaths): void {
 
 const PATCH_FILE = resolve(
   import.meta.dirname ?? dirname(new URL(import.meta.url).pathname),
-  "..", "..", "patches", "UhtJsonExporter.cs",
+  "..",
+  "..",
+  "patches",
+  "UhtJsonExporter.cs",
 );
 
 /**
@@ -108,10 +124,10 @@ export function rebuildUbt(paths: EnginePaths): void {
   };
 
   // BuildUBT.bat is a Windows batch file; invoke via PowerShell for reliability
-  const result = execSync(
-    `powershell.exe -Command "& '${paths.buildUbtScript}' 2>&1"`,
-    { ...opts, timeout: 120_000 },
-  );
+  const result = execSync(`powershell.exe -Command "& '${paths.buildUbtScript}' 2>&1"`, {
+    ...opts,
+    timeout: 120_000,
+  });
 
   if (result.includes("Build FAILED") || result.includes("Error(s)")) {
     throw new Error(`UBT rebuild failed:\n${result}`);
@@ -120,10 +136,7 @@ export function rebuildUbt(paths: EnginePaths): void {
 
 // ── UHT invocation ─────────────────────────────────────────────────
 
-export function invokeUht(
-  config: ResolvedConfig,
-  paths: EnginePaths,
-): string {
+export function invokeUht(config: ResolvedConfig, paths: EnginePaths): string {
   const targetArg = [
     config.target,
     config.platform,
@@ -140,10 +153,10 @@ export function invokeUht(
     "-NoDefaultExporters",
   ].join(" ");
 
-  const result = execSync(
-    `powershell.exe -Command "& ${cmd} 2>&1"`,
-    { encoding: "utf-8", timeout: 600_000 },
-  );
+  const result = execSync(`powershell.exe -Command "& ${cmd} 2>&1"`, {
+    encoding: "utf-8",
+    timeout: 600_000,
+  });
 
   if (result.includes("Result: Failed")) {
     throw new Error(`UHT extraction failed:\n${result}`);

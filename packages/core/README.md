@@ -18,10 +18,10 @@ npm install unreal-rc effect
 
 Enable the **Remote Control** plugin in your Unreal project (Edit > Plugins > search "Remote Control"). The plugin opens two localhost endpoints:
 
-| Protocol | Default Port |
-|----------|-------------|
-| HTTP | `30010` |
-| WebSocket | `30020` |
+| Protocol  | Default Port |
+| --------- | ------------ |
+| HTTP      | `30010`      |
+| WebSocket | `30020`      |
 
 ## Creating a Client
 
@@ -36,14 +36,15 @@ const ue = new UnrealRC({ transport: "http" });
 
 // Full options
 const ue = new UnrealRC({
-  transport: "ws",          // "ws" | "http"
-  host: "127.0.0.1",       // Unreal host
-  port: 30020,             // Port (default: 30020 for ws, 30010 for http)
-  passphrase: "secret",    // Overrides the default Remote Control HTTP passphrase
-  validateResponses: true,  // Validate response schemas with Effect Schema
-  retry: {                  // Retry policy (or `true` for defaults, `false` to disable)
+  transport: "ws", // "ws" | "http"
+  host: "127.0.0.1", // Unreal host
+  port: 30020, // Port (default: 30020 for ws, 30010 for http)
+  passphrase: "secret", // Overrides the default Remote Control HTTP passphrase
+  validateResponses: true, // Validate response schemas with Effect Schema
+  retry: {
+    // Retry policy (or `true` for defaults, `false` to disable)
     maxAttempts: 3,
-    delayMs: 100,           // or (context) => context.attempt * 200
+    delayMs: 100, // or (context) => context.attempt * 200
     shouldRetry: (ctx) => ctx.error.kind !== "decode",
   },
 });
@@ -65,7 +66,7 @@ Call a function on a remote UObject.
 await ue.call({
   objectPath: "/Game/Maps/Main.Main:PersistentLevel.MyActor",
   functionName: "SetActorHiddenInGame",
-  parameters: { bNewHidden: false }
+  parameters: { bNewHidden: false },
 });
 
 // Call with transaction support (for undo/redo in the editor)
@@ -73,7 +74,7 @@ await ue.call({
   objectPath: path,
   functionName: "IncrementCounter",
   parameters: { Delta: 5 },
-  transaction: true
+  transaction: true,
 });
 
 // Access the return value
@@ -83,11 +84,11 @@ console.log(result.ReturnValue); // e.g. 100
 
 **Options:**
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `transaction` | `boolean` | Wrap in an editor transaction (enables undo) |
-| `timeoutMs` | `number` | Per-request timeout override for the full request lifecycle, including queued websocket time |
-| `retry` | `RetryOptions` | Per-request retry override |
+| Option        | Type           | Description                                                                                  |
+| ------------- | -------------- | -------------------------------------------------------------------------------------------- |
+| `transaction` | `boolean`      | Wrap in an editor transaction (enables undo)                                                 |
+| `timeoutMs`   | `number`       | Per-request timeout override for the full request lifecycle, including queued websocket time |
+| `retry`       | `RetryOptions` | Per-request retry override                                                                   |
 
 ---
 
@@ -101,7 +102,7 @@ const health = await ue.getProperty<number>({ objectPath: path, propertyName: "H
 
 const location = await ue.getProperty<{ X: number; Y: number; Z: number }>({
   objectPath: path,
-  propertyName: "RelativeLocation"
+  propertyName: "RelativeLocation",
 });
 ```
 
@@ -126,21 +127,30 @@ Write a property on a remote UObject.
 await ue.setProperty({ objectPath: path, propertyName: "Health", propertyValue: 100 });
 
 // With transaction support
-await ue.setProperty({ objectPath: path, propertyName: "Health", propertyValue: 100, transaction: true });
+await ue.setProperty({
+  objectPath: path,
+  propertyName: "Health",
+  propertyValue: 100,
+  transaction: true,
+});
 
 // Setting a struct property
 import { vector } from "unreal-rc";
-await ue.setProperty({ objectPath: path, propertyName: "RelativeLocation", propertyValue: vector(100, 200, 300) });
+await ue.setProperty({
+  objectPath: path,
+  propertyName: "RelativeLocation",
+  propertyValue: vector(100, 200, 300),
+});
 ```
 
 **Arguments:**
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `access` | `"WRITE_ACCESS" \| "WRITE_TRANSACTION_ACCESS"` | Access mode |
-| `transaction` | `boolean` | Wrap in an editor transaction |
-| `timeoutMs` | `number` | Per-request timeout override for the full request lifecycle, including queued websocket time |
-| `retry` | `RetryOptions` | Per-request retry override |
+| Option        | Type                                           | Description                                                                                  |
+| ------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `access`      | `"WRITE_ACCESS" \| "WRITE_TRANSACTION_ACCESS"` | Access mode                                                                                  |
+| `transaction` | `boolean`                                      | Wrap in an editor transaction                                                                |
+| `timeoutMs`   | `number`                                       | Per-request timeout override for the full request lifecycle, including queued websocket time |
+| `retry`       | `RetryOptions`                                 | Per-request retry override                                                                   |
 
 ---
 
@@ -191,12 +201,12 @@ for (const asset of result.Assets ?? []) {
 
 **Arguments:**
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `classNames` | `string[]` | Filter by asset class |
-| `packagePaths` | `string[]` | Filter by package path |
-| `recursivePaths` | `boolean` | Search subdirectories |
-| `recursiveClasses` | `boolean` | Include subclasses |
+| Option             | Type       | Description            |
+| ------------------ | ---------- | ---------------------- |
+| `classNames`       | `string[]` | Filter by asset class  |
+| `packagePaths`     | `string[]` | Filter by package path |
+| `recursivePaths`   | `boolean`  | Search subdirectories  |
+| `recursiveClasses` | `boolean`  | Include subclasses     |
 
 ---
 
@@ -328,7 +338,7 @@ transform(vector(0, 0, 0), rotator(0, 90, 0));
 import { parseReturnValue } from "unreal-rc";
 
 const response = await ue.call({ objectPath: path, functionName: "GetHealth" });
-const health = parseReturnValue<number>(response);          // reads .ReturnValue
+const health = parseReturnValue<number>(response); // reads .ReturnValue
 const health = parseReturnValue<number>(response, "Health"); // reads .Health
 ```
 
@@ -343,29 +353,29 @@ try {
   await ue.call({ objectPath: path, functionName: "DoSomething" });
 } catch (error) {
   if (error instanceof TransportRequestError) {
-    error.kind;       // "timeout" | "connect" | "disconnect" | "http_status"
-                      // | "remote_status" | "decode" | "unknown"
+    error.kind; // "timeout" | "connect" | "disconnect" | "http_status"
+    // | "remote_status" | "decode" | "unknown"
     error.statusCode; // HTTP status code (if applicable)
-    error.details;    // Response body from Unreal
-    error.verb;       // "GET" | "PUT" | ...
-    error.url;        // "/remote/object/call"
-    error.transport;  // "ws" | "http"
-    error.requestId;  // Server-assigned request ID
+    error.details; // Response body from Unreal
+    error.verb; // "GET" | "PUT" | ...
+    error.url; // "/remote/object/call"
+    error.transport; // "ws" | "http"
+    error.requestId; // Server-assigned request ID
   }
 }
 ```
 
 ### Error Kinds
 
-| Kind | Description |
-|------|-------------|
-| `timeout` | Request exceeded the timeout |
-| `connect` | Could not connect to Unreal |
-| `disconnect` | Connection dropped mid-request |
-| `http_status` | Non-2xx HTTP response from Unreal |
+| Kind            | Description                                |
+| --------------- | ------------------------------------------ |
+| `timeout`       | Request exceeded the timeout               |
+| `connect`       | Could not connect to Unreal                |
+| `disconnect`    | Connection dropped mid-request             |
+| `http_status`   | Non-2xx HTTP response from Unreal          |
 | `remote_status` | Unreal returned an application-level error |
-| `decode` | Response did not match the expected schema |
-| `unknown` | Unexpected error |
+| `decode`        | Response did not match the expected schema |
+| `unknown`       | Unexpected error                           |
 
 ### Retries
 
@@ -382,7 +392,7 @@ await ue.call({
   objectPath: path,
   functionName: "SlowFunction",
   retry: { maxAttempts: 10, delayMs: 500 },
-  timeoutMs: 30000
+  timeoutMs: 30000,
 });
 
 // Disable retries for a specific request
@@ -429,15 +439,15 @@ import { Effect } from "effect";
 
 const ue = new UnrealRC({
   onRequestEffect: (ctx) => Effect.logInfo(`>> ${ctx.verb} ${ctx.url}`),
-  onResponseEffect: (ctx) =>
-    Effect.logInfo(`<< ${ctx.statusCode} (${ctx.durationMs}ms)`),
-  onErrorEffect: (ctx) =>
-    Effect.logError(`${ctx.error._tag}: ${ctx.error.message}`),
+  onResponseEffect: (ctx) => Effect.logInfo(`<< ${ctx.statusCode} (${ctx.durationMs}ms)`),
+  onErrorEffect: (ctx) => Effect.logError(`${ctx.error._tag}: ${ctx.error.message}`),
 });
 
 // Callback hooks and Effect hooks can coexist
 const ue = new UnrealRC({
-  onRequest: (ctx) => { /* callback: errors ignored */ },
+  onRequest: (ctx) => {
+    /* callback: errors ignored */
+  },
   onRequestEffect: (ctx) => Effect.logInfo("..."), // fails propagate
 });
 ```
@@ -456,7 +466,7 @@ const ue = new UnrealRC();
 const program = Effect.gen(function* () {
   const result = yield* ue.effect.call({
     objectPath: "/Game/Maps/Main.Main:Actor",
-    functionName: "GetHealth"
+    functionName: "GetHealth",
   });
   return result.ReturnValue;
 });
@@ -469,18 +479,18 @@ Effect methods fail with a tagged `TransportError` union. Narrow errors with `ca
 ```ts
 import { TimeoutError, ConnectError, HttpStatusError } from "unreal-rc/effect";
 
-const robustCall = ue.effect.call({
-  objectPath: "/Game/Maps/Main.Main:Actor",
-  functionName: "GetHealth"
-}).pipe(
-  Effect.catchTag("TimeoutError", (e) => Effect.succeed({ ReturnValue: -1 })),
-  Effect.catchTag("ConnectError", (e) =>
-    Effect.fail(new Error(`Unreal not running: ${e.message}`))
-  ),
-  Effect.catchTag("HttpStatusError", (e) =>
-    Effect.succeed({ ReturnValue: e.statusCode })
-  )
-);
+const robustCall = ue.effect
+  .call({
+    objectPath: "/Game/Maps/Main.Main:Actor",
+    functionName: "GetHealth",
+  })
+  .pipe(
+    Effect.catchTag("TimeoutError", (e) => Effect.succeed({ ReturnValue: -1 })),
+    Effect.catchTag("ConnectError", (e) =>
+      Effect.fail(new Error(`Unreal not running: ${e.message}`)),
+    ),
+    Effect.catchTag("HttpStatusError", (e) => Effect.succeed({ ReturnValue: e.statusCode })),
+  );
 ```
 
 **Error tags:** `TimeoutError`, `ConnectError`, `DisconnectError`, `HttpStatusError`, `RemoteStatusError`, `DecodeError`.
@@ -495,7 +505,7 @@ import {
   HttpStatusError,
   RemoteStatusError,
   DecodeError,
-  type TransportError
+  type TransportError,
 } from "unreal-rc/effect";
 ```
 
@@ -512,18 +522,20 @@ const ScoreSchema = Schema.Struct({ points: Schema.Number, rank: Schema.String }
 const score = await ue.callReturn({
   objectPath: "/Game/Maps/Main.Main:Actor",
   functionName: "GetScore",
-  returnSchema: ScoreSchema
+  returnSchema: ScoreSchema,
 });
 // score: { points: number; rank: string }
 
 // Effect API
-const score = yield* ue.effect.callReturn({
-  objectPath: "/Game/Maps/Main.Main:Actor",
-  functionName: "GetScore",
-  returnSchema: ScoreSchema
-}).pipe(
-  Effect.catchTag("DecodeError", () => Effect.succeed({ points: 0, rank: "unknown" }))
-);
+const score =
+  yield *
+  ue.effect
+    .callReturn({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "GetScore",
+      returnSchema: ScoreSchema,
+    })
+    .pipe(Effect.catchTag("DecodeError", () => Effect.succeed({ points: 0, rank: "unknown" })));
 ```
 
 ### Generic Requests (`request` / `requestRaw`)
@@ -535,20 +547,20 @@ Send arbitrary HTTP requests to Unreal Remote Control endpoints:
 const data = await ue.request({
   verb: "GET",
   url: "/remote/info",
-  responseSchema: InfoResponseSchema
+  responseSchema: InfoResponseSchema,
 });
 
 // Raw request — returns the full TransportResponse
 const raw = await ue.requestRaw({
   verb: "PUT",
   url: "/remote/search/assets",
-  body: { query: "Chair" }
+  body: { query: "Chair" },
 });
 // raw: { body: unknown; statusCode?: number; requestId?: number | string }
 
 // Effect equivalents
-const data = yield* ue.effect.request({ verb: "GET", url: "/remote/info" });
-const raw = yield* ue.effect.requestRaw({ verb: "PUT", url: "/custom", body: { key: "val" } });
+const data = yield * ue.effect.request({ verb: "GET", url: "/remote/info" });
+const raw = yield * ue.effect.requestRaw({ verb: "PUT", url: "/custom", body: { key: "val" } });
 ```
 
 ### Effect Layer / Service
@@ -565,17 +577,13 @@ const program = Effect.gen(function* () {
   const info = yield* ue.info();
   const result = yield* ue.call({
     objectPath: "/Game/Maps/Main.Main:Actor",
-    functionName: "GetHealth"
+    functionName: "GetHealth",
   });
   return result.ReturnValue;
 });
 
 // Provide the live layer at the edge
-await Effect.runPromise(
-  program.pipe(
-    Effect.provide(UnrealRCLive({ transport: "http" }))
-  )
-);
+await Effect.runPromise(program.pipe(Effect.provide(UnrealRCLive({ transport: "http" }))));
 ```
 
 The service is scoped — `dispose` is called automatically when the Effect scope ends.
@@ -623,7 +631,7 @@ import { buildCallRequest, BatchBuilder } from "unreal-rc";
 const body = buildCallRequest({
   objectPath: path,
   functionName: "SetActorHiddenInGame",
-  parameters: { bNewHidden: false }
+  parameters: { bNewHidden: false },
 });
 // Use with your own HTTP client, CLI tool, etc.
 ```

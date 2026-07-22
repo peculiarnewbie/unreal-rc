@@ -63,8 +63,8 @@ export const resolveFixture = (options: ResolveFixtureOptions = {}): ResolvedFix
     const followUp = envFixtureDir
       ? "Update UNREAL_FIXTURE_DIR to point at your Unreal fixture project root."
       : [
-          "Run `bun run fixture:init` after configuring the fixture submodule,",
-          "or set UNREAL_FIXTURE_DIR to an existing Unreal fixture project root."
+          "Run `pnpm fixture:init` after configuring the fixture submodule,",
+          "or set UNREAL_FIXTURE_DIR to an existing Unreal fixture project root.",
         ].join(" ");
 
     throw new Error(`${baseMessage} ${followUp}`);
@@ -78,14 +78,16 @@ export const resolveFixture = (options: ResolveFixtureOptions = {}): ResolvedFix
     uprojectPath,
     defaultFixtureDir: DEFAULT_FIXTURE_DIR,
     defaultFixtureRelativeDir: DEFAULT_FIXTURE_RELATIVE_DIR,
-    submoduleConfigured: isDefaultFixtureSubmoduleConfigured()
+    submoduleConfigured: isDefaultFixtureSubmoduleConfigured(),
   };
 };
 
 const printStatus = (): void => {
   const fixture = resolveFixture();
 
-  console.log(`Fixture source: ${fixture.source === "env" ? "UNREAL_FIXTURE_DIR" : "default path"}`);
+  console.log(
+    `Fixture source: ${fixture.source === "env" ? "UNREAL_FIXTURE_DIR" : "default path"}`,
+  );
   console.log(`Fixture dir: ${fixture.fixtureDir}`);
   console.log(`Default dir: ${fixture.defaultFixtureRelativeDir}`);
   console.log(`Submodule configured: ${fixture.submoduleConfigured ? "yes" : "no"}`);
@@ -95,7 +97,7 @@ const printStatus = (): void => {
   if (!fixture.ready) {
     if (fixture.source === "env") {
       console.log(
-        "Fixture is not ready. Point UNREAL_FIXTURE_DIR at a project root containing a .uproject file."
+        "Fixture is not ready. Point UNREAL_FIXTURE_DIR at a project root containing a .uproject file.",
       );
       return;
     }
@@ -109,7 +111,7 @@ const initDefaultFixtureSubmodule = (): void => {
 
   if (fixture.source === "env") {
     console.log(
-      "UNREAL_FIXTURE_DIR is set. Skipping submodule init because a custom fixture path is in use."
+      "UNREAL_FIXTURE_DIR is set. Skipping submodule init because a custom fixture path is in use.",
     );
     return;
   }
@@ -118,8 +120,8 @@ const initDefaultFixtureSubmodule = (): void => {
     throw new Error(
       [
         `No submodule is configured at "${fixture.defaultFixtureRelativeDir}" yet.`,
-        `Add it with: git submodule add <fixture-repo-url> ${fixture.defaultFixtureRelativeDir}`
-      ].join(" ")
+        `Add it with: git submodule add <fixture-repo-url> ${fixture.defaultFixtureRelativeDir}`,
+      ].join(" "),
     );
   }
 
@@ -128,8 +130,8 @@ const initDefaultFixtureSubmodule = (): void => {
     ["submodule", "update", "--init", "--recursive", "--", fixture.defaultFixtureRelativeDir],
     {
       cwd: ROOT_DIR,
-      stdio: "inherit"
-    }
+      stdio: "inherit",
+    },
   );
 };
 
@@ -138,7 +140,7 @@ const updateDefaultFixtureSubmodule = (): void => {
 
   if (fixture.source === "env") {
     console.log(
-      "UNREAL_FIXTURE_DIR is set. Skipping submodule update because a custom fixture path is in use."
+      "UNREAL_FIXTURE_DIR is set. Skipping submodule update because a custom fixture path is in use.",
     );
     return;
   }
@@ -147,18 +149,26 @@ const updateDefaultFixtureSubmodule = (): void => {
     throw new Error(
       [
         `No submodule is configured at "${fixture.defaultFixtureRelativeDir}" yet.`,
-        `Add it with: git submodule add <fixture-repo-url> ${fixture.defaultFixtureRelativeDir}`
-      ].join(" ")
+        `Add it with: git submodule add <fixture-repo-url> ${fixture.defaultFixtureRelativeDir}`,
+      ].join(" "),
     );
   }
 
   execFileSync(
     "git",
-    ["submodule", "update", "--init", "--remote", "--recursive", "--", fixture.defaultFixtureRelativeDir],
+    [
+      "submodule",
+      "update",
+      "--init",
+      "--remote",
+      "--recursive",
+      "--",
+      fixture.defaultFixtureRelativeDir,
+    ],
     {
       cwd: ROOT_DIR,
-      stdio: "inherit"
-    }
+      stdio: "inherit",
+    },
   );
 
   console.log("");

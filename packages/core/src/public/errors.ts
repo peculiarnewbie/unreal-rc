@@ -5,7 +5,7 @@ import type {
   HttpStatusError,
   RemoteStatusError,
   TimeoutError,
-  TransportError
+  TransportError,
 } from "../internal/errors.js";
 import type { HttpVerb, TransportRequestErrorKind, TransportRequestId } from "./types.js";
 
@@ -29,7 +29,7 @@ export class TransportRequestError extends Error {
       transport?: string | undefined;
       requestId?: TransportRequestId | undefined;
       cause?: unknown;
-    }
+    },
   ) {
     super(message, { cause: options?.cause });
     this.name = "TransportRequestError";
@@ -49,7 +49,7 @@ const tagToKind: Record<TransportError["_tag"], TransportRequestErrorKind> = {
   DisconnectError: "disconnect",
   HttpStatusError: "http_status",
   RemoteStatusError: "remote_status",
-  DecodeError: "decode"
+  DecodeError: "decode",
 };
 
 export const toPublicError = (error: TransportError): TransportRequestError => {
@@ -71,7 +71,7 @@ export const toPublicError = (error: TransportError): TransportRequestError => {
     url,
     transport,
     requestId,
-    cause
+    cause,
   });
 };
 
@@ -86,7 +86,7 @@ export const toTransportRequestError = (
     url?: string | undefined;
     transport?: string | undefined;
     requestId?: TransportRequestId | undefined;
-  } = {}
+  } = {},
 ): TransportRequestError => {
   if (error instanceof TransportRequestError) {
     return new TransportRequestError(error.message, {
@@ -97,7 +97,7 @@ export const toTransportRequestError = (
       verb: error.verb ?? fallback.verb,
       url: error.url ?? fallback.url,
       transport: error.transport ?? fallback.transport,
-      requestId: error.requestId ?? fallback.requestId
+      requestId: error.requestId ?? fallback.requestId,
     });
   }
 
@@ -111,8 +111,8 @@ export const toTransportRequestError = (
       verb: fallback.verb,
       url: fallback.url,
       transport: fallback.transport,
-      requestId: fallback.requestId
-    }
+      requestId: fallback.requestId,
+    },
   );
 };
 
@@ -121,24 +121,22 @@ export const toTransportRequestError = (
 const hasStatusCode = (e: TransportError): e is HttpStatusError | RemoteStatusError =>
   "statusCode" in e;
 
-const hasDetails = (
-  e: TransportError
-): e is HttpStatusError | RemoteStatusError | DecodeError => "details" in e;
+const hasDetails = (e: TransportError): e is HttpStatusError | RemoteStatusError | DecodeError =>
+  "details" in e;
 
 const hasVerb = (
-  e: TransportError
+  e: TransportError,
 ): e is TimeoutError | HttpStatusError | RemoteStatusError | DecodeError => "verb" in e;
 
 const hasUrl = (
-  e: TransportError
+  e: TransportError,
 ): e is TimeoutError | HttpStatusError | RemoteStatusError | DecodeError => "url" in e;
 
 const hasRequestId = (
-  e: TransportError
+  e: TransportError,
 ): e is TimeoutError | HttpStatusError | RemoteStatusError | DecodeError => "requestId" in e;
 
 const hasTransport = (e: TransportError): e is TransportError => "transport" in e;
 
-const hasCause = (
-  e: TransportError
-): e is ConnectError | DisconnectError | DecodeError => "cause" in e;
+const hasCause = (e: TransportError): e is ConnectError | DisconnectError | DecodeError =>
+  "cause" in e;

@@ -43,9 +43,7 @@ export function emit(
   }
 
   // Barrel index
-  const indexContent = modules
-    .map((m) => `export * from "./${m.name}.js";`)
-    .join("\n") + "\n";
+  const indexContent = modules.map((m) => `export * from "./${m.name}.js";`).join("\n") + "\n";
   writeFileSync(join(config.outDir, "index.ts"), indexContent, "utf-8");
 
   console.log(`[codegen] Wrote ${modules.length} module(s) to ${config.outDir}`);
@@ -93,18 +91,14 @@ function emitClassSchema(cls: FilteredClass): string[] {
     }
 
     // Params inferred type
-    lines.push(
-      `export type ${schemaName}Params = typeof ${schemaName}Params.Type;`,
-    );
+    lines.push(`export type ${schemaName}Params = typeof ${schemaName}Params.Type;`);
 
     // Return schema (if non-void)
     if (returnParam) {
       lines.push(
         `export const ${schemaName}Return = ${toSchemaExpr(returnParam.EngineClassName)};`,
       );
-      lines.push(
-        `export type ${schemaName}Return = typeof ${schemaName}Return.Type;`,
-      );
+      lines.push(`export type ${schemaName}Return = typeof ${schemaName}Return.Type;`);
     }
 
     lines.push(``);

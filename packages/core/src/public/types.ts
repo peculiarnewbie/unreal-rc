@@ -23,7 +23,7 @@ import type {
   PropertyMetadataSchema,
   RouteInfoSchema,
   SearchAssetsRequestSchema,
-  SearchAssetsResponseSchema
+  SearchAssetsResponseSchema,
 } from "../internal/schemas.js";
 
 type WithIndex<T> = T & { readonly [key: string]: unknown };
@@ -48,7 +48,9 @@ export type FunctionArgument = WithIndex<Schema.Schema.Type<typeof FunctionArgum
 
 export type FunctionMetadata = WithIndex<Schema.Schema.Type<typeof FunctionMetadataSchema>>;
 
-export type ObjectDescribeResponse = WithIndex<Schema.Schema.Type<typeof ObjectDescribeResponseSchema>>;
+export type ObjectDescribeResponse = WithIndex<
+  Schema.Schema.Type<typeof ObjectDescribeResponseSchema>
+>;
 
 export type SearchAssetsRequest = WithIndex<Schema.Schema.Type<typeof SearchAssetsRequestSchema>>;
 
@@ -72,7 +74,9 @@ export type ObjectEventRequest = WithIndex<Schema.Schema.Type<typeof ObjectEvent
 
 export type ObjectEventResponse = WithIndex<Schema.Schema.Type<typeof ObjectEventResponseSchema>>;
 
-export type ObjectThumbnailRequest = WithIndex<Schema.Schema.Type<typeof ObjectThumbnailRequestSchema>>;
+export type ObjectThumbnailRequest = WithIndex<
+  Schema.Schema.Type<typeof ObjectThumbnailRequestSchema>
+>;
 
 export type ObjectThumbnailResponse = Schema.Schema.Type<typeof ObjectThumbnailResponseSchema>;
 
@@ -104,12 +108,16 @@ export interface HealthStatus {
 }
 
 export type DiscriminatedPingResult =
-  | { readonly type: "reachable"; readonly latencyMs: number; }
-  | { readonly type: "unreachable"; };
+  | { readonly type: "reachable"; readonly latencyMs: number }
+  | { readonly type: "unreachable" };
 
 export type DiscriminatedHealthStatus =
-  | { readonly type: "healthy"; readonly latencyMs: number; readonly lastSeen: Date; }
-  | { readonly type: "unhealthy"; readonly consecutiveFailures: number; readonly lastSeen: Date | undefined; };
+  | { readonly type: "healthy"; readonly latencyMs: number; readonly lastSeen: Date }
+  | {
+      readonly type: "unhealthy";
+      readonly consecutiveFailures: number;
+      readonly lastSeen: Date | undefined;
+    };
 
 export interface PendingRequestInfo {
   readonly requestId: number | string | undefined;

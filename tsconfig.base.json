@@ -12,7 +12,10 @@
     "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
     "plugins": [
-      { "name": "@effect/language-service" }
+      {
+        "name": "@effect/language-service",
+        "includeSuggestionsInTsc": false
+      }
     ]
   }
 }

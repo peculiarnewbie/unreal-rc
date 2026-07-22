@@ -5,7 +5,7 @@ This directory is reserved for tests that require a real Unreal fixture project.
 Run them from the repo root with:
 
 ```bash
-bun run test:e2e
+pnpm test:e2e
 ```
 
 Fixture resolution order:

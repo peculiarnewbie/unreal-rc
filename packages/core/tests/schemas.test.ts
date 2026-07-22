@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { Schema } from "effect";
 import {
   AccessModeSchema,
@@ -24,11 +24,10 @@ import {
   PropertyMetadataSchema,
   RouteInfoSchema,
   SearchAssetsRequestSchema,
-  SearchAssetsResponseSchema
+  SearchAssetsResponseSchema,
 } from "../src/index.js";
 
-const decode = <S extends Schema.Schema.Any>(schema: S) =>
-  Schema.decodeUnknownSync(schema);
+const decode = <S extends Schema.Schema.Any>(schema: S) => Schema.decodeUnknownSync(schema);
 
 // ── Enum schemas ──────────────────────────────────────────────────────
 
@@ -65,7 +64,7 @@ describe("ObjectCallRequestSchema", () => {
   test("decodes minimal call request", () => {
     const result = decode(ObjectCallRequestSchema)({
       objectPath: "/Game/Maps/Main.Main:Actor",
-      functionName: "DoThing"
+      functionName: "DoThing",
     });
     expect(result.objectPath).toBe("/Game/Maps/Main.Main:Actor");
     expect(result.functionName).toBe("DoThing");
@@ -76,7 +75,7 @@ describe("ObjectCallRequestSchema", () => {
       objectPath: "/Game/Maps/Main.Main:Actor",
       functionName: "Add",
       parameters: { Delta: 5, Label: "test" },
-      generateTransaction: true
+      generateTransaction: true,
     });
     expect(result.parameters).toEqual({ Delta: 5, Label: "test" });
     expect(result.generateTransaction).toBe(true);
@@ -86,8 +85,8 @@ describe("ObjectCallRequestSchema", () => {
     expect(() =>
       decode(ObjectCallRequestSchema)({
         objectPath: "",
-        functionName: "DoThing"
-      })
+        functionName: "DoThing",
+      }),
     ).toThrow();
   });
 
@@ -95,15 +94,15 @@ describe("ObjectCallRequestSchema", () => {
     expect(() =>
       decode(ObjectCallRequestSchema)({
         objectPath: "/Game/Maps/Main.Main:Actor",
-        functionName: ""
-      })
+        functionName: "",
+      }),
     ).toThrow();
   });
 
   test("rejects missing required fields", () => {
     expect(() => decode(ObjectCallRequestSchema)({})).toThrow();
     expect(() =>
-      decode(ObjectCallRequestSchema)({ objectPath: "/Game/Maps/Main.Main:Actor" })
+      decode(ObjectCallRequestSchema)({ objectPath: "/Game/Maps/Main.Main:Actor" }),
     ).toThrow();
   });
 });
@@ -121,7 +120,7 @@ describe("ObjectCallResponseSchema", () => {
 
   test("decodes response with complex ReturnValue", () => {
     const result = decode(ObjectCallResponseSchema)({
-      ReturnValue: { X: 1, Y: 2, Z: 3 }
+      ReturnValue: { X: 1, Y: 2, Z: 3 },
     });
     expect(result.ReturnValue).toEqual({ X: 1, Y: 2, Z: 3 });
   });
@@ -134,7 +133,7 @@ describe("ObjectPropertyRequestSchema", () => {
     const result = decode(ObjectPropertyRequestSchema)({
       objectPath: "/Game/Maps/Main.Main:Actor",
       propertyName: "Counter",
-      access: "READ_ACCESS"
+      access: "READ_ACCESS",
     });
     expect(result.access).toBe("READ_ACCESS");
   });
@@ -144,7 +143,7 @@ describe("ObjectPropertyRequestSchema", () => {
       objectPath: "/Game/Maps/Main.Main:Actor",
       propertyName: "Counter",
       propertyValue: { Counter: 10 },
-      access: "WRITE_ACCESS"
+      access: "WRITE_ACCESS",
     });
     expect(result.propertyValue).toEqual({ Counter: 10 });
     expect(result.access).toBe("WRITE_ACCESS");
@@ -152,7 +151,7 @@ describe("ObjectPropertyRequestSchema", () => {
 
   test("decodes minimal request with only objectPath", () => {
     const result = decode(ObjectPropertyRequestSchema)({
-      objectPath: "/Game/Maps/Main.Main:Actor"
+      objectPath: "/Game/Maps/Main.Main:Actor",
     });
     expect(result.objectPath).toBe("/Game/Maps/Main.Main:Actor");
     expect(result.propertyName).toBeUndefined();
@@ -162,8 +161,8 @@ describe("ObjectPropertyRequestSchema", () => {
     expect(() =>
       decode(ObjectPropertyRequestSchema)({
         objectPath: "/Game/Maps/Main.Main:Actor",
-        access: "INVALID"
-      })
+        access: "INVALID",
+      }),
     ).toThrow();
   });
 });
@@ -185,15 +184,13 @@ describe("ObjectPropertyResponseSchema", () => {
 describe("ObjectDescribeRequestSchema", () => {
   test("decodes describe request", () => {
     const result = decode(ObjectDescribeRequestSchema)({
-      objectPath: "/Game/Maps/Main.Main:Actor"
+      objectPath: "/Game/Maps/Main.Main:Actor",
     });
     expect(result.objectPath).toBe("/Game/Maps/Main.Main:Actor");
   });
 
   test("rejects empty objectPath", () => {
-    expect(() =>
-      decode(ObjectDescribeRequestSchema)({ objectPath: "" })
-    ).toThrow();
+    expect(() => decode(ObjectDescribeRequestSchema)({ objectPath: "" })).toThrow();
   });
 });
 
@@ -208,7 +205,7 @@ describe("PropertyMetadataSchema", () => {
       Name: "Counter",
       Description: "A counter value",
       Type: "int32",
-      Metadata: { Category: "Stats" }
+      Metadata: { Category: "Stats" },
     });
     expect(result.Type).toBe("int32");
     expect(result.Metadata).toEqual({ Category: "Stats" });
@@ -230,7 +227,7 @@ describe("FunctionArgumentSchema", () => {
       Name: "Delta",
       Type: "int32",
       Description: "Amount to add",
-      Metadata: { Range: "0-100" }
+      Metadata: { Range: "0-100" },
     });
     expect(result.Type).toBe("int32");
     expect(result.Description).toBe("Amount to add");
@@ -249,8 +246,8 @@ describe("FunctionMetadataSchema", () => {
       ReturnType: "int32",
       Arguments: [
         { Name: "Delta", Type: "int32" },
-        { Name: "Label", Type: "FString" }
-      ]
+        { Name: "Label", Type: "FString" },
+      ],
     });
     expect(result.Arguments).toHaveLength(2);
     expect(result.Arguments?.[0]?.Name).toBe("Delta");
@@ -274,9 +271,9 @@ describe("ObjectDescribeResponseSchema", () => {
         {
           Name: "AddToCounter",
           ReturnType: "int32",
-          Arguments: [{ Name: "Delta" }]
-        }
-      ]
+          Arguments: [{ Name: "Delta" }],
+        },
+      ],
     });
     expect(result.Name).toBe("E2EFixtureActor");
     expect(result.Properties).toHaveLength(1);
@@ -302,7 +299,7 @@ describe("SearchAssetsRequestSchema", () => {
       packagePaths: ["/Game/Meshes"],
       recursivePaths: true,
       recursiveClasses: false,
-      includeOnlyOnDiskAssets: true
+      includeOnlyOnDiskAssets: true,
     });
     expect(result.query).toBe("Chair");
     expect(result.classNames).toEqual(["StaticMesh"]);
@@ -323,7 +320,7 @@ describe("AssetInfoSchema", () => {
       PackageName: "/Game/Meshes/Chair",
       PackagePath: "/Game/Meshes",
       AssetClass: "StaticMesh",
-      Class: "StaticMesh"
+      Class: "StaticMesh",
     });
     expect(result.Name).toBe("Chair");
     expect(result.ObjectPath).toBe("/Game/Meshes/Chair.Chair");
@@ -338,9 +335,7 @@ describe("AssetInfoSchema", () => {
 describe("SearchAssetsResponseSchema", () => {
   test("decodes response with Assets array", () => {
     const result = decode(SearchAssetsResponseSchema)({
-      Assets: [
-        { Name: "Chair", ObjectPath: "/Game/Meshes/Chair.Chair" }
-      ]
+      Assets: [{ Name: "Chair", ObjectPath: "/Game/Meshes/Chair.Chair" }],
     });
     expect(result.Assets).toHaveLength(1);
     expect(result.Assets?.[0]?.Name).toBe("Chair");
@@ -348,7 +343,7 @@ describe("SearchAssetsResponseSchema", () => {
 
   test("decodes response with Results array", () => {
     const result = decode(SearchAssetsResponseSchema)({
-      Results: [{ Name: "Table" }]
+      Results: [{ Name: "Table" }],
     });
     expect(result.Results).toHaveLength(1);
   });
@@ -367,7 +362,7 @@ describe("BatchRequestItemSchema", () => {
     const result = decode(BatchRequestItemSchema)({
       RequestId: 0,
       URL: "/remote/info",
-      Verb: "GET"
+      Verb: "GET",
     });
     expect(result.RequestId).toBe(0);
     expect(result.Verb).toBe("GET");
@@ -378,35 +373,33 @@ describe("BatchRequestItemSchema", () => {
       RequestId: 1,
       URL: "/remote/object/call",
       Verb: "PUT",
-      Body: { objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" }
+      Body: { objectPath: "/Game/Maps/Main.Main:Actor", functionName: "Ping" },
     });
     expect(result.Body).toEqual({
       objectPath: "/Game/Maps/Main.Main:Actor",
-      functionName: "Ping"
+      functionName: "Ping",
     });
   });
 
   test("rejects negative RequestId", () => {
     expect(() =>
-      decode(BatchRequestItemSchema)({ RequestId: -1, URL: "/remote/info", Verb: "GET" })
+      decode(BatchRequestItemSchema)({ RequestId: -1, URL: "/remote/info", Verb: "GET" }),
     ).toThrow();
   });
 
   test("rejects fractional RequestId", () => {
     expect(() =>
-      decode(BatchRequestItemSchema)({ RequestId: 1.5, URL: "/remote/info", Verb: "GET" })
+      decode(BatchRequestItemSchema)({ RequestId: 1.5, URL: "/remote/info", Verb: "GET" }),
     ).toThrow();
   });
 
   test("rejects empty URL", () => {
-    expect(() =>
-      decode(BatchRequestItemSchema)({ RequestId: 0, URL: "", Verb: "GET" })
-    ).toThrow();
+    expect(() => decode(BatchRequestItemSchema)({ RequestId: 0, URL: "", Verb: "GET" })).toThrow();
   });
 
   test("rejects invalid Verb", () => {
     expect(() =>
-      decode(BatchRequestItemSchema)({ RequestId: 0, URL: "/remote/info", Verb: "HEAD" })
+      decode(BatchRequestItemSchema)({ RequestId: 0, URL: "/remote/info", Verb: "HEAD" }),
     ).toThrow();
   });
 });
@@ -416,8 +409,8 @@ describe("BatchRequestSchema", () => {
     const result = decode(BatchRequestSchema)({
       Requests: [
         { RequestId: 0, URL: "/remote/info", Verb: "GET" },
-        { RequestId: 1, URL: "/remote/object/call", Verb: "PUT" }
-      ]
+        { RequestId: 1, URL: "/remote/object/call", Verb: "PUT" },
+      ],
     });
     expect(result.Requests).toHaveLength(2);
   });
@@ -437,7 +430,7 @@ describe("BatchResponseItemSchema", () => {
     const result = decode(BatchResponseItemSchema)({
       RequestId: 0,
       ResponseCode: 200,
-      ResponseBody: { ReturnValue: 42 }
+      ResponseBody: { ReturnValue: 42 },
     });
     expect(result.ResponseCode).toBe(200);
     expect(result.ResponseBody).toEqual({ ReturnValue: 42 });
@@ -446,7 +439,7 @@ describe("BatchResponseItemSchema", () => {
   test("decodes response item without body", () => {
     const result = decode(BatchResponseItemSchema)({
       RequestId: 1,
-      ResponseCode: 404
+      ResponseCode: 404,
     });
     expect(result.ResponseBody).toBeUndefined();
   });
@@ -457,8 +450,8 @@ describe("BatchResponseSchema", () => {
     const result = decode(BatchResponseSchema)({
       Responses: [
         { RequestId: 0, ResponseCode: 200, ResponseBody: {} },
-        { RequestId: 1, ResponseCode: 404 }
-      ]
+        { RequestId: 1, ResponseCode: 404 },
+      ],
     });
     expect(result.Responses).toHaveLength(2);
   });
@@ -476,7 +469,7 @@ describe("RouteInfoSchema", () => {
     const result = decode(RouteInfoSchema)({
       Path: "/remote/object/call",
       Verb: "PUT",
-      Description: "Call a function on an object"
+      Description: "Call a function on an object",
     });
     expect(result.Path).toBe("/remote/object/call");
   });
@@ -492,15 +485,15 @@ describe("InfoResponseSchema", () => {
     const result = decode(InfoResponseSchema)({
       HttpRoutes: [
         { Path: "/remote/info", Verb: "GET" },
-        { Path: "/remote/object/call", Verb: "PUT" }
-      ]
+        { Path: "/remote/object/call", Verb: "PUT" },
+      ],
     });
     expect(result.HttpRoutes).toHaveLength(2);
   });
 
   test("decodes info response with Routes", () => {
     const result = decode(InfoResponseSchema)({
-      Routes: [{ Path: "/remote/object/call" }]
+      Routes: [{ Path: "/remote/object/call" }],
     });
     expect(result.Routes).toHaveLength(1);
   });
@@ -519,31 +512,29 @@ describe("ObjectEventRequestSchema", () => {
     const result = decode(ObjectEventRequestSchema)({
       objectPath: "/Game/Maps/Main.Main:Actor",
       propertyName: "Counter",
-      timeoutSeconds: 30
+      timeoutSeconds: 30,
     });
     expect(result.timeoutSeconds).toBe(30);
   });
 
   test("decodes minimal event request", () => {
     const result = decode(ObjectEventRequestSchema)({
-      objectPath: "/Game/Maps/Main.Main:Actor"
+      objectPath: "/Game/Maps/Main.Main:Actor",
     });
     expect(result.propertyName).toBeUndefined();
     expect(result.timeoutSeconds).toBeUndefined();
   });
 
   test("rejects empty objectPath", () => {
-    expect(() =>
-      decode(ObjectEventRequestSchema)({ objectPath: "" })
-    ).toThrow();
+    expect(() => decode(ObjectEventRequestSchema)({ objectPath: "" })).toThrow();
   });
 
   test("rejects zero timeoutSeconds", () => {
     expect(() =>
       decode(ObjectEventRequestSchema)({
         objectPath: "/Game/Maps/Main.Main:Actor",
-        timeoutSeconds: 0
-      })
+        timeoutSeconds: 0,
+      }),
     ).toThrow();
   });
 
@@ -551,8 +542,8 @@ describe("ObjectEventRequestSchema", () => {
     expect(() =>
       decode(ObjectEventRequestSchema)({
         objectPath: "/Game/Maps/Main.Main:Actor",
-        timeoutSeconds: -5
-      })
+        timeoutSeconds: -5,
+      }),
     ).toThrow();
   });
 });
@@ -562,7 +553,7 @@ describe("ObjectEventResponseSchema", () => {
     const result = decode(ObjectEventResponseSchema)({
       objectPath: "/Game/Maps/Main.Main:Actor",
       propertyName: "Counter",
-      propertyValue: 42
+      propertyValue: 42,
     });
     expect(result.propertyValue).toBe(42);
   });
@@ -578,15 +569,13 @@ describe("ObjectEventResponseSchema", () => {
 describe("ObjectThumbnailRequestSchema", () => {
   test("decodes thumbnail request", () => {
     const result = decode(ObjectThumbnailRequestSchema)({
-      objectPath: "/Game/Meshes/Chair.Chair"
+      objectPath: "/Game/Meshes/Chair.Chair",
     });
     expect(result.objectPath).toBe("/Game/Meshes/Chair.Chair");
   });
 
   test("rejects empty objectPath", () => {
-    expect(() =>
-      decode(ObjectThumbnailRequestSchema)({ objectPath: "" })
-    ).toThrow();
+    expect(() => decode(ObjectThumbnailRequestSchema)({ objectPath: "" })).toThrow();
   });
 });
 

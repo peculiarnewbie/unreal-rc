@@ -1,10 +1,10 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import {
   acquireFixture,
   releaseFixture,
   getBootTimeoutMs,
   waitForRemoteControlHttp,
-  waitForRemoteControlWs
+  waitForRemoteControlWs,
 } from "./setup.js";
 
 const launchWsPortTest = process.env.UNREAL_E2E === "1" ? test : test.skip;
@@ -24,5 +24,5 @@ launchWsPortTest(
       await releaseFixture();
     }
   },
-  getBootTimeoutMs() + 30_000
+  getBootTimeoutMs() + 30_000,
 );

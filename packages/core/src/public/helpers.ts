@@ -36,35 +36,35 @@ export const blueprintLibraryPath = (moduleName: string, className: string): str
 export const vector = (x: number, y: number, z: number): { X: number; Y: number; Z: number } => ({
   X: x,
   Y: y,
-  Z: z
+  Z: z,
 });
 
 export const rotator = (
   pitch: number,
   yaw: number,
-  roll: number
+  roll: number,
 ): { Pitch: number; Yaw: number; Roll: number } => ({
   Pitch: pitch,
   Yaw: yaw,
-  Roll: roll
+  Roll: roll,
 });
 
 export const linearColor = (
   r: number,
   g: number,
   b: number,
-  a = 1
+  a = 1,
 ): { R: number; G: number; B: number; A: number } => ({
   R: r,
   G: g,
   B: b,
-  A: a
+  A: a,
 });
 
 export const transform = (
   location: { X: number; Y: number; Z: number },
   rotation: { Pitch: number; Yaw: number; Roll: number },
-  scale3D = vector(1, 1, 1)
+  scale3D = vector(1, 1, 1),
 ): {
   Translation: { X: number; Y: number; Z: number };
   Rotation: { Pitch: number; Yaw: number; Roll: number };
@@ -72,7 +72,7 @@ export const transform = (
 } => ({
   Translation: location,
   Rotation: rotation,
-  Scale3D: scale3D
+  Scale3D: scale3D,
 });
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {

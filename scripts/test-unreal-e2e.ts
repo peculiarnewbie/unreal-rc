@@ -42,15 +42,20 @@ try {
     process.exit(0);
   }
 
-  const result = spawnSync("bun", ["test", ...testFiles], {
-    cwd: ROOT_DIR,
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      UNREAL_E2E: "1",
-      UNREAL_FIXTURE_DIR: fixture.fixtureDir
-    }
-  });
+  const result = spawnSync(
+    "pnpm",
+    ["--filter", "unreal-rc", "exec", "vitest", "run", "--config", "vitest.e2e.config.ts"],
+    {
+      cwd: ROOT_DIR,
+      stdio: "inherit",
+      shell: true,
+      env: {
+        ...process.env,
+        UNREAL_E2E: "1",
+        UNREAL_FIXTURE_DIR: fixture.fixtureDir,
+      },
+    },
+  );
 
   process.exit(result.status ?? 1);
 } catch (error) {

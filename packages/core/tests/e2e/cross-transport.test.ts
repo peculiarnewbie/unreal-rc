@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import type { GetPropertyArgs, SetPropertyArgs } from "../../src/index.js";
 import {
   acquireFixture,
@@ -9,7 +9,7 @@ import {
   resolveFixtureContract,
   resolveLaunchOptions,
   waitForRemoteControlHttp,
-  waitForRemoteControlWs
+  waitForRemoteControlWs,
 } from "./setup.js";
 
 const crossTransportTest = process.env.UNREAL_E2E === "1" ? test : test.skip;
@@ -24,7 +24,7 @@ crossTransportTest(
     let currentStep = "wait for Remote Control HTTP";
     const requestOptions = {
       timeoutMs: launchOptions.requestTimeoutMs,
-      retry: false
+      retry: false,
     } as const;
 
     try {
@@ -62,7 +62,7 @@ crossTransportTest(
         objectPath: contract.objectPath,
         functionName: contract.functionName,
         parameters: { [contract.functionArgumentName]: contract.httpCallDelta },
-        ...requestOptions
+        ...requestOptions,
       });
 
       const expectedAfterHttpCall = contract.baselineValue + contract.httpCallDelta;
@@ -80,7 +80,7 @@ crossTransportTest(
         objectPath: contract.objectPath,
         functionName: contract.functionName,
         parameters: { [contract.functionArgumentName]: contract.wsCallDelta },
-        ...requestOptions
+        ...requestOptions,
       });
 
       const expectedAfterWsCall = contract.baselineValue + contract.wsCallDelta;
@@ -96,24 +96,22 @@ crossTransportTest(
           handle,
           diagnostics: clients.diagnostics,
           contract,
-          launchOptions
-        })
+          launchOptions,
+        }),
       );
     } finally {
       try {
-        await setCounter(
-          clients.http,
-          contract,
-          contract.baselineValue,
-          { timeoutMs: launchOptions.requestTimeoutMs, retry: false }
-        );
+        await setCounter(clients.http, contract, contract.baselineValue, {
+          timeoutMs: launchOptions.requestTimeoutMs,
+          retry: false,
+        });
       } catch {}
 
       clients.dispose();
       await releaseFixture();
     }
   },
-  getBootTimeoutMs() + 60_000
+  getBootTimeoutMs() + 60_000,
 );
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -126,12 +124,12 @@ interface ContractRef {
 const getCounter = async (
   client: { getProperty<T>(args: GetPropertyArgs): Promise<T | undefined> },
   contract: ContractRef,
-  options: { timeoutMs?: number; retry?: unknown }
+  options: { timeoutMs?: number; retry?: unknown },
 ): Promise<number> => {
   const value = await client.getProperty<number>({
     objectPath: contract.objectPath,
     propertyName: contract.propertyName,
-    ...options
+    ...options,
   });
   expect(typeof value).toBe("number");
   return value as number;
@@ -141,12 +139,12 @@ const setCounter = async (
   client: { setProperty(args: SetPropertyArgs): Promise<unknown> },
   contract: ContractRef,
   value: number,
-  options: { timeoutMs?: number; retry?: unknown }
+  options: { timeoutMs?: number; retry?: unknown },
 ): Promise<void> => {
   await client.setProperty({
     objectPath: contract.objectPath,
     propertyName: contract.propertyName,
     propertyValue: value,
-    ...options
+    ...options,
   });
 };

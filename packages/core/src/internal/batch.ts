@@ -6,7 +6,7 @@ import {
   ObjectCallRequestSchema,
   ObjectDescribeRequestSchema,
   ObjectPropertyRequestSchema,
-  SearchAssetsRequestSchema
+  SearchAssetsRequestSchema,
 } from "./schemas.js";
 import type {
   AccessMode,
@@ -18,7 +18,7 @@ import type {
   ObjectCallRequest,
   ObjectDescribeRequest,
   ObjectPropertyRequest,
-  SearchAssetsRequest
+  SearchAssetsRequest,
 } from "../public/types.js";
 
 export interface BuildCallArgs {
@@ -71,13 +71,13 @@ export function buildCallRequest(args: BuildCallArgs): ObjectCallRequest {
     objectPath,
     functionName,
     ...(parameters !== undefined ? { parameters } : {}),
-    ...(transaction !== undefined ? { generateTransaction: transaction } : {})
+    ...(transaction !== undefined ? { generateTransaction: transaction } : {}),
   }) as ObjectCallRequest;
 }
 
 export const buildPropertyRequest = (
   objectPath: string,
-  options: BuildPropertyRequestOptions = {}
+  options: BuildPropertyRequestOptions = {},
 ): ObjectPropertyRequest => {
   const hasPropertyValue = "propertyValue" in options && options.propertyValue !== undefined;
   const access =
@@ -94,7 +94,7 @@ export const buildPropertyRequest = (
     ...(hasPropertyValue
       ? { propertyValue: normalizePropertyValue(options.propertyName, options.propertyValue) }
       : {}),
-    access
+    access,
   }) as ObjectPropertyRequest;
 };
 
@@ -103,7 +103,7 @@ export const buildDescribeRequest = (objectPath: string): ObjectDescribeRequest 
 };
 
 export const buildBatchRequest = (
-  requests: readonly BatchRequestItem[] | BatchBuilder
+  requests: readonly BatchRequestItem[] | BatchBuilder,
 ): BatchRequest => {
   const items = requests instanceof BatchBuilder ? requests.getRequests() : [...requests];
   return Schema.encodeSync(BatchRequestSchema)({ Requests: items }) as BatchRequest;
@@ -123,7 +123,7 @@ export class BatchBuilder {
     return this.add(
       "PUT",
       "/remote/object/property",
-      buildPropertyRequest(objectPath, { propertyName, access: acc })
+      buildPropertyRequest(objectPath, { propertyName, access: acc }),
     );
   }
 
@@ -136,8 +136,8 @@ export class BatchBuilder {
         propertyName,
         propertyValue,
         ...(access !== undefined ? { access } : {}),
-        ...(transaction !== undefined ? { transaction } : {})
-      })
+        ...(transaction !== undefined ? { transaction } : {}),
+      }),
     );
   }
 
@@ -149,7 +149,7 @@ export class BatchBuilder {
     const { query, ...rest } = args;
     const body = Schema.encodeSync(SearchAssetsRequestSchema)({
       query,
-      ...rest
+      ...rest,
     });
     return this.add("PUT", "/remote/search/assets", body);
   }
@@ -172,7 +172,7 @@ export class BatchBuilder {
       RequestId: requestId,
       URL: url,
       Verb: verb,
-      ...(body !== undefined ? { Body: body } : {})
+      ...(body !== undefined ? { Body: body } : {}),
     }) as BatchRequestItem;
     this.requests.push(entry);
     return requestId;
@@ -181,7 +181,7 @@ export class BatchBuilder {
 
 export const correlateBatchResponses = (
   requests: BatchRequestItem[],
-  response: BatchResponse
+  response: BatchResponse,
 ): BatchResult[] => {
   const byRequestId = new Map<number, BatchResponseItem>();
 
@@ -195,12 +195,15 @@ export const correlateBatchResponses = (
       requestId: request.RequestId,
       statusCode: matched?.ResponseCode ?? 0,
       body: matched?.ResponseBody,
-      request
+      request,
     };
   });
 };
 
-const normalizePropertyValue = (propertyName: string | undefined, propertyValue: unknown): unknown => {
+const normalizePropertyValue = (
+  propertyName: string | undefined,
+  propertyValue: unknown,
+): unknown => {
   if (propertyName === undefined) {
     return propertyValue;
   }
@@ -212,7 +215,10 @@ const normalizePropertyValue = (propertyName: string | undefined, propertyValue:
   return { [propertyName]: propertyValue };
 };
 
-const isSinglePropertyValueMap = (value: unknown, propertyName: string): value is Record<string, unknown> => {
+const isSinglePropertyValueMap = (
+  value: unknown,
+  propertyName: string,
+): value is Record<string, unknown> => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
   }

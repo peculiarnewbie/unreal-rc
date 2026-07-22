@@ -1,9 +1,9 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import {
   acquireFixture,
   releaseFixture,
   getBootTimeoutMs,
-  waitForRemoteControlHttp
+  waitForRemoteControlHttp,
 } from "./setup.js";
 
 const launchHttpPortTest = process.env.UNREAL_E2E === "1" ? test : test.skip;
@@ -21,11 +21,13 @@ launchHttpPortTest(
       expect(httpStatus.endpointUrl).toEndWith("/remote/info");
       expect(httpRoutes.length).toBeGreaterThan(0);
       expect(
-        httpRoutes.some((route) => route.Path === "/remote/info" || route.Path === "/remote/object/call")
+        httpRoutes.some(
+          (route) => route.Path === "/remote/info" || route.Path === "/remote/object/call",
+        ),
       ).toBe(true);
     } finally {
       await releaseFixture();
     }
   },
-  getBootTimeoutMs() + 30_000
+  getBootTimeoutMs() + 30_000,
 );

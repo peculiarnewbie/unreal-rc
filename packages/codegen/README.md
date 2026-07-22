@@ -18,7 +18,7 @@ No custom C++ parser. No regex. The authoritative Unreal compiler does the parsi
 
 ## Prerequisites
 
-- **Bun** runtime (the monorepo package manager)
+- **Node.js** 18+ and **pnpm** (the monorepo package manager)
 - **.NET SDK** (`dotnet` on PATH) — required to invoke UnrealBuildTool
 - **Unreal Engine source build** — the codegen patches UHT's JSON exporter (stock UE has a serialization bug). The patch is applied automatically on first run.
 
@@ -29,7 +29,7 @@ No custom C++ parser. No regex. The authoritative Unreal compiler does the parsi
 If your project has been built at least once (so UHT intermediate files exist):
 
 ```bash
-bun packages/codegen/src/cli.ts \
+pnpm --filter @unreal-rc/codegen exec node --experimental-strip-types ./src/cli.ts \
   --intermediateDir "C:/MyProject/Intermediate/Build/Win64/UnrealEditor/Inc" \
   --moduleFilter "MyGame*" \
   --outDir ./src/generated
@@ -40,7 +40,7 @@ bun packages/codegen/src/cli.ts \
 Run the full pipeline — patches the engine exporter, invokes UHT, and generates schemas in one step:
 
 ```bash
-bun packages/codegen/src/cli.ts \
+pnpm --filter @unreal-rc/codegen exec node --experimental-strip-types ./src/cli.ts \
   --extract \
   --engineDir "C:/UnrealEngine" \
   --projectFile "C:/MyProject/MyProject.uproject" \
@@ -50,6 +50,7 @@ bun packages/codegen/src/cli.ts \
 ```
 
 This will:
+
 1. Check if your engine has the patched JSON exporter — if not, copy it in and rebuild UBT (~8s)
 2. Run UHT with `-Json -NoDefaultExporters` (~3s for a large project)
 3. Discover JSON files for matching modules
@@ -88,9 +89,9 @@ function launchAt(params: M_ProjectileBase_SetTargetActorParams) {
   return client.call(objectPath, "SetTargetActor", params);
 }
 
-launchAt({ target: "/Game/.../Enemy" });  // OK
-launchAt({ target: 42 });                 // Type error: number is not string
-launchAt({ taget: "/Game/.../Enemy" });   // Type error: 'taget' does not exist
+launchAt({ target: "/Game/.../Enemy" }); // OK
+launchAt({ target: 42 }); // Type error: number is not string
+launchAt({ taget: "/Game/.../Enemy" }); // Type error: 'taget' does not exist
 ```
 
 ### Use the class-level function map
@@ -103,9 +104,9 @@ import { M_ProjectileBase } from "./generated/ManaProjectile.js";
 // Autocomplete shows every BlueprintCallable function on the class
 const fn = M_ProjectileBase.SetTargetActor;
 
-fn.functionName;   // "SetTargetActor" (string literal type)
-fn.params;         // Schema.Struct<{ target: typeof Schema.String }>
-fn.returnSchema;   // present if the function has a return value
+fn.functionName; // "SetTargetActor" (string literal type)
+fn.params; // Schema.Struct<{ target: typeof Schema.String }>
+fn.returnSchema; // present if the function has a return value
 
 // Use it to build generic helpers:
 async function callFn<P>(
@@ -129,17 +130,17 @@ By default, `--moduleFilter` limits output to your game modules. To also generat
 
 ```bash
 # All modules (engine + project + plugins) — generates hundreds of files
-bun packages/codegen/src/cli.ts \
+pnpm --filter @unreal-rc/codegen exec node --experimental-strip-types src/cli.ts \
   --intermediateDir "C:/MyProject/Intermediate/Build/Win64/UnrealEditor/Inc" \
   --outDir ./src/generated
 
 # Or combine engine and project with separate runs
-bun packages/codegen/src/cli.ts \
+pnpm --filter @unreal-rc/codegen exec node --experimental-strip-types src/cli.ts \
   --intermediateDir "C:/UE5/Engine/Intermediate/Build/Win64/UnrealEditor/Inc" \
   --moduleFilter "Engine" \
   --outDir ./src/generated/engine
 
-bun packages/codegen/src/cli.ts \
+pnpm --filter @unreal-rc/codegen exec node --experimental-strip-types src/cli.ts \
   --intermediateDir "C:/MyProject/Intermediate/Build/Win64/UnrealEditor/Inc" \
   --moduleFilter "MyGame*" \
   --outDir ./src/generated/game
@@ -179,36 +180,38 @@ float GetProjectileLifeTime() const;
 
 ```typescript
 export const M_ProjectileBase_GetProjectileLifeTimeParams = Schema.Struct({});
-export type M_ProjectileBase_GetProjectileLifeTimeParams = typeof M_ProjectileBase_GetProjectileLifeTimeParams.Type;
+export type M_ProjectileBase_GetProjectileLifeTimeParams =
+  typeof M_ProjectileBase_GetProjectileLifeTimeParams.Type;
 
 export const M_ProjectileBase_GetProjectileLifeTimeReturn = Schema.Number;
-export type M_ProjectileBase_GetProjectileLifeTimeReturn = typeof M_ProjectileBase_GetProjectileLifeTimeReturn.Type;
+export type M_ProjectileBase_GetProjectileLifeTimeReturn =
+  typeof M_ProjectileBase_GetProjectileLifeTimeReturn.Type;
 ```
 
 ### Type Mapping
 
-| C++ / UHT Type | Generated Schema | TypeScript Type |
-|---|---|---|
-| `float`, `double` | `Schema.Number` | `number` |
-| `int32`, `uint32`, `int8`, `uint8` | `Schema.Number` | `number` |
-| `bool` | `Schema.Boolean` | `boolean` |
-| `FString` | `Schema.String` | `string` |
-| `FName` | `Schema.String` | `string` |
-| `FText` | `Schema.String` | `string` |
-| `UObject*`, `AActor*`, etc. | `Schema.String` | `string` (object path) |
-| `TSubclassOf<T>` | `Schema.String` | `string` (class path) |
-| `TSoftObjectPtr<T>` | `Schema.String` | `string` (soft ref path) |
-| `TArray<T>` | `Schema.Array(...)` | `T[]` |
-| `TMap<K, V>` | `Schema.Record(...)` | `Record<K, V>` |
-| `USTRUCT` types | `Schema.Unknown` (TODO) | `unknown` |
-| `UENUM` types | `Schema.Unknown` (TODO) | `unknown` |
+| C++ / UHT Type                     | Generated Schema        | TypeScript Type          |
+| ---------------------------------- | ----------------------- | ------------------------ |
+| `float`, `double`                  | `Schema.Number`         | `number`                 |
+| `int32`, `uint32`, `int8`, `uint8` | `Schema.Number`         | `number`                 |
+| `bool`                             | `Schema.Boolean`        | `boolean`                |
+| `FString`                          | `Schema.String`         | `string`                 |
+| `FName`                            | `Schema.String`         | `string`                 |
+| `FText`                            | `Schema.String`         | `string`                 |
+| `UObject*`, `AActor*`, etc.        | `Schema.String`         | `string` (object path)   |
+| `TSubclassOf<T>`                   | `Schema.String`         | `string` (class path)    |
+| `TSoftObjectPtr<T>`                | `Schema.String`         | `string` (soft ref path) |
+| `TArray<T>`                        | `Schema.Array(...)`     | `T[]`                    |
+| `TMap<K, V>`                       | `Schema.Record(...)`    | `Record<K, V>`           |
+| `USTRUCT` types                    | `Schema.Unknown` (TODO) | `unknown`                |
+| `UENUM` types                      | `Schema.Unknown` (TODO) | `unknown`                |
 
 > Struct and enum resolution is planned — currently emits `Schema.Unknown` for complex nested types.
 
 ## CLI Reference
 
 ```
-bun packages/codegen/src/cli.ts [options]
+pnpm --filter @unreal-rc/codegen exec node --experimental-strip-types src/cli.ts [options]
 
 EXTRACTION (optional — skipped if --intermediateDir is provided):
   --extract                 Run UHT to produce JSON from source

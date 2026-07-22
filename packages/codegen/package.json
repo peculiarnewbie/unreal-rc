@@ -3,16 +3,16 @@
   "version": "0.0.0",
   "private": true,
   "description": "CLI tool for extracting Unreal Header Tool reflection data and generating TypeScript types",
-  "type": "module",
   "bin": {
     "unreal-rc-codegen": "./src/cli.ts"
   },
+  "type": "module",
   "scripts": {
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "effect": "4.0.0-beta.37"
+    "effect": "4.0.0-beta.100"
   }
 }

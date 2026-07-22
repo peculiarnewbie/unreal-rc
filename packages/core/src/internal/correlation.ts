@@ -27,7 +27,7 @@ export interface PendingRequestsService {
     verb: string,
     url: string,
     startedAt: number,
-    timeoutMs: number | undefined
+    timeoutMs: number | undefined,
   ) => Effect.Effect<Deferred.Deferred<TransportResponse, TransportError>>;
   readonly resolve: (requestId: number, response: TransportResponse) => Effect.Effect<void>;
   readonly reject: (requestId: number, error: TransportError) => Effect.Effect<void>;
@@ -35,10 +35,9 @@ export interface PendingRequestsService {
   readonly snapshot: Effect.Effect<ReadonlyArray<PendingRequestSnapshot>>;
 }
 
-export class PendingRequests extends Context.Service<
-  PendingRequests,
-  PendingRequestsService
->()("PendingRequests") {}
+export class PendingRequests extends Context.Service<PendingRequests, PendingRequestsService>()(
+  "PendingRequests",
+) {}
 
 export const PendingRequestsLive: Layer.Layer<PendingRequests> = Layer.effect(PendingRequests)(
   Effect.gen(function* () {
@@ -55,10 +54,19 @@ export const PendingRequestsLive: Layer.Layer<PendingRequests> = Layer.effect(Pe
           return entry._tag === "Some" ? entry.value : undefined;
         }),
 
-      add: (requestId: number, verb: string, url: string, startedAt: number, timeoutMs: number | undefined) =>
+      add: (
+        requestId: number,
+        verb: string,
+        url: string,
+        startedAt: number,
+        timeoutMs: number | undefined,
+      ) =>
         Effect.gen(function* () {
           const deferred = yield* Deferred.make<TransportResponse, TransportError>();
-          yield* Ref.update(pending, HashMap.set(requestId, { requestId, deferred, verb, url, startedAt, timeoutMs }));
+          yield* Ref.update(
+            pending,
+            HashMap.set(requestId, { requestId, deferred, verb, url, startedAt, timeoutMs }),
+          );
           return deferred;
         }),
 
@@ -100,11 +108,11 @@ export const PendingRequestsLive: Layer.Layer<PendingRequests> = Layer.effect(Pe
             verb: entry.verb,
             url: entry.url,
             startedAt: entry.startedAt,
-            timeoutMs: entry.timeoutMs
+            timeoutMs: entry.timeoutMs,
           });
         }
         return entries;
-      })
+      }),
     };
-  })
+  }),
 );

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import {
   blueprintLibraryPath,
   linearColor,
@@ -7,14 +7,14 @@ import {
   piePath,
   rotator,
   transform,
-  vector
+  vector,
 } from "../src/index.js";
 
 describe("helpers", () => {
   test("builds normalized object paths", () => {
     expect(objectPath("Game/Maps/Main", "Main", "MyActor")).toBe("/Game/Maps/Main.Main:MyActor");
     expect(objectPath(" /Game/Maps/Main ", " Main ", " MyActor ")).toBe(
-      "/Game/Maps/Main.Main:MyActor"
+      "/Game/Maps/Main.Main:MyActor",
     );
   });
 
@@ -31,7 +31,7 @@ describe("helpers", () => {
 
   test("builds blueprint library paths", () => {
     expect(blueprintLibraryPath("Gameplay", "MyLibrary")).toBe(
-      "/Script/Gameplay.Default__MyLibrary"
+      "/Script/Gameplay.Default__MyLibrary",
     );
   });
 
@@ -46,7 +46,7 @@ describe("helpers", () => {
     expect(transform(vector(1, 2, 3), rotator(10, 20, 30))).toEqual({
       Translation: { X: 1, Y: 2, Z: 3 },
       Rotation: { Pitch: 10, Yaw: 20, Roll: 30 },
-      Scale3D: { X: 1, Y: 1, Z: 1 }
+      Scale3D: { X: 1, Y: 1, Z: 1 },
     });
   });
 

@@ -2,7 +2,12 @@ import { Effect, Schema } from "effect";
 import type { TransportError } from "../internal/errors.js";
 import { DecodeError } from "../internal/errors.js";
 import { Transport } from "../internal/transport.js";
-import { makeRuntime, sendRequest, type FullLayer, type RuntimeConfig } from "../internal/runtime.js";
+import {
+  makeRuntime,
+  sendRequest,
+  type FullLayer,
+  type RuntimeConfig,
+} from "../internal/runtime.js";
 import { withRetry } from "../internal/retry.js";
 import {
   BatchBuilder,
@@ -11,7 +16,7 @@ import {
   buildPropertyRequest,
   buildBatchRequest,
   correlateBatchResponses,
-  type BatchResult
+  type BatchResult,
 } from "../internal/batch.js";
 import {
   ObjectCallResponseSchema,
@@ -24,7 +29,7 @@ import {
   ObjectEventResponseSchema,
   ObjectThumbnailRequestSchema,
   ObjectThumbnailResponseSchema,
-  BatchResponseSchema
+  BatchResponseSchema,
 } from "../internal/schemas.js";
 import { UnrealRCOptionsSchema } from "../internal/config-schemas.js";
 import { toPublicError, TransportRequestError } from "./errors.js";
@@ -43,7 +48,7 @@ import type {
   PingResult,
   SearchAssetsResponse,
   InfoResponse,
-  TransportRequestId
+  TransportRequestId,
 } from "./types.js";
 import type { TransportResponse } from "../internal/transport.js";
 import type { ManagedRuntime } from "effect";
@@ -54,7 +59,7 @@ import type {
   PayloadRedactionContext,
   RequestHookContext,
   ResponseHookContext,
-  ErrorHookContext
+  ErrorHookContext,
 } from "../internal/hooks.js";
 
 // ── Hook context types (re-exported from hooks) ────────────────────────
@@ -66,7 +71,7 @@ export type {
   PayloadRedactionContext,
   RequestHookContext,
   ResponseHookContext,
-  ErrorHookContext
+  ErrorHookContext,
 } from "../internal/hooks.js";
 
 // ── Option types ───────────────────────────────────────────────────────
@@ -238,10 +243,18 @@ export class UnrealRC {
   private readonly _onRequest: ((ctx: RequestHookContext) => void | Promise<void>) | undefined;
   private readonly _onResponse: ((ctx: ResponseHookContext) => void | Promise<void>) | undefined;
   private readonly _onError: ((ctx: ErrorHookContext) => void | Promise<void>) | undefined;
-  private readonly _onRequestEffect: ((ctx: EffectRequestHookContext) => Effect.Effect<void>) | undefined;
-  private readonly _onResponseEffect: ((ctx: EffectResponseHookContext) => Effect.Effect<void>) | undefined;
-  private readonly _onErrorEffect: ((ctx: EffectErrorHookContext) => Effect.Effect<void>) | undefined;
-  private readonly _redactPayload: ((payload: unknown, ctx: PayloadRedactionContext) => unknown) | undefined;
+  private readonly _onRequestEffect:
+    | ((ctx: EffectRequestHookContext) => Effect.Effect<void>)
+    | undefined;
+  private readonly _onResponseEffect:
+    | ((ctx: EffectResponseHookContext) => Effect.Effect<void>)
+    | undefined;
+  private readonly _onErrorEffect:
+    | ((ctx: EffectErrorHookContext) => Effect.Effect<void>)
+    | undefined;
+  private readonly _redactPayload:
+    | ((payload: unknown, ctx: PayloadRedactionContext) => unknown)
+    | undefined;
 
   constructor(options: UnrealRCOptions = {}) {
     Schema.decodeUnknownSync(UnrealRCOptionsSchema)(options, { onExcessProperty: "ignore" });
@@ -270,186 +283,282 @@ export class UnrealRC {
           objectPath,
           functionName,
           ...(parameters !== undefined ? { parameters } : {}),
-          ...(transaction !== undefined ? { transaction } : {})
+          ...(transaction !== undefined ? { transaction } : {}),
         });
-        return self.sendEffect("PUT", "/remote/object/call", body, ObjectCallResponseSchema, {
-          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-          ...(retry !== undefined ? { retry } : {})
-        }).pipe(
-          Effect.map((result) => normalizeCallResponse(result.decoded))
-        ) as Effect.Effect<ObjectCallResponse, TransportError, Transport>;
+        return self
+          .sendEffect("PUT", "/remote/object/call", body, ObjectCallResponseSchema, {
+            ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+            ...(retry !== undefined ? { retry } : {}),
+          })
+          .pipe(Effect.map((result) => normalizeCallResponse(result.decoded))) as Effect.Effect<
+          ObjectCallResponse,
+          TransportError,
+          Transport
+        >;
       },
 
-      getProperty<T = unknown>(args: GetPropertyArgs): Effect.Effect<T | undefined, TransportError, Transport> {
+      getProperty<T = unknown>(
+        args: GetPropertyArgs,
+      ): Effect.Effect<T | undefined, TransportError, Transport> {
         const { objectPath, propertyName, access, timeoutMs, retry } = args;
         const body = buildPropertyRequest(objectPath, {
           propertyName,
-          access: access ?? "READ_ACCESS"
+          access: access ?? "READ_ACCESS",
         });
-        return self.sendEffect("PUT", "/remote/object/property", body, ObjectPropertyResponseSchema, {
-          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-          ...(retry !== undefined ? { retry } : {})
-        }).pipe(
-          Effect.map((result) => {
-            const parsed = parseReturnValue<T>(result.decoded, propertyName) ?? parseReturnValue<T>(result.decoded);
-            return parsed;
+        return self
+          .sendEffect("PUT", "/remote/object/property", body, ObjectPropertyResponseSchema, {
+            ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+            ...(retry !== undefined ? { retry } : {}),
           })
-        ) as Effect.Effect<T | undefined, TransportError, Transport>;
+          .pipe(
+            Effect.map((result) => {
+              const parsed =
+                parseReturnValue<T>(result.decoded, propertyName) ??
+                parseReturnValue<T>(result.decoded);
+              return parsed;
+            }),
+          ) as Effect.Effect<T | undefined, TransportError, Transport>;
       },
 
-      getProperties<T = Record<string, unknown>>(args: GetPropertiesArgs): Effect.Effect<T, TransportError, Transport> {
+      getProperties<T = Record<string, unknown>>(
+        args: GetPropertiesArgs,
+      ): Effect.Effect<T, TransportError, Transport> {
         const { objectPath, access, timeoutMs, retry } = args;
         const body = buildPropertyRequest(objectPath, {
-          access: access ?? "READ_ACCESS"
+          access: access ?? "READ_ACCESS",
         });
-        return self.sendEffect("PUT", "/remote/object/property", body, ObjectPropertyResponseSchema, {
-          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-          ...(retry !== undefined ? { retry } : {})
-        }).pipe(
-          Effect.map((result) => {
-            const parsed = parseReturnValue<T>(result.decoded) ?? (result.decoded as T);
-            return parsed;
+        return self
+          .sendEffect("PUT", "/remote/object/property", body, ObjectPropertyResponseSchema, {
+            ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+            ...(retry !== undefined ? { retry } : {}),
           })
-        ) as Effect.Effect<T, TransportError, Transport>;
+          .pipe(
+            Effect.map((result) => {
+              const parsed = parseReturnValue<T>(result.decoded) ?? (result.decoded as T);
+              return parsed;
+            }),
+          ) as Effect.Effect<T, TransportError, Transport>;
       },
 
-      setProperty(args: SetPropertyArgs): Effect.Effect<ObjectPropertyResponse, TransportError, Transport> {
-        const { objectPath, propertyName, propertyValue, access, transaction, timeoutMs, retry } = args;
+      setProperty(
+        args: SetPropertyArgs,
+      ): Effect.Effect<ObjectPropertyResponse, TransportError, Transport> {
+        const { objectPath, propertyName, propertyValue, access, transaction, timeoutMs, retry } =
+          args;
         const body = buildPropertyRequest(objectPath, {
           propertyName,
           propertyValue,
           ...(access !== undefined ? { access } : {}),
-          ...(transaction !== undefined ? { transaction } : {})
+          ...(transaction !== undefined ? { transaction } : {}),
         });
-        return self.sendEffect("PUT", "/remote/object/property", body, ObjectPropertyResponseSchema, {
-          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-          ...(retry !== undefined ? { retry } : {})
-        }).pipe(
-          Effect.map((result) => result.decoded ?? ({} as ObjectPropertyResponse))
-        ) as Effect.Effect<ObjectPropertyResponse, TransportError, Transport>;
+        return self
+          .sendEffect("PUT", "/remote/object/property", body, ObjectPropertyResponseSchema, {
+            ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+            ...(retry !== undefined ? { retry } : {}),
+          })
+          .pipe(
+            Effect.map((result) => result.decoded ?? ({} as ObjectPropertyResponse)),
+          ) as Effect.Effect<ObjectPropertyResponse, TransportError, Transport>;
       },
 
-      describe(args: DescribeArgs): Effect.Effect<ObjectDescribeResponse, TransportError, Transport> {
+      describe(
+        args: DescribeArgs,
+      ): Effect.Effect<ObjectDescribeResponse, TransportError, Transport> {
         const { objectPath, timeoutMs, retry } = args;
-        return self.sendEffect("PUT", "/remote/object/describe", buildDescribeRequest(objectPath), ObjectDescribeResponseSchema, {
-          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-          ...(retry !== undefined ? { retry } : {})
-        }).pipe(
-          Effect.map((result) => result.decoded)
-        ) as Effect.Effect<ObjectDescribeResponse, TransportError, Transport>;
+        return self
+          .sendEffect(
+            "PUT",
+            "/remote/object/describe",
+            buildDescribeRequest(objectPath),
+            ObjectDescribeResponseSchema,
+            {
+              ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+              ...(retry !== undefined ? { retry } : {}),
+            },
+          )
+          .pipe(Effect.map((result) => result.decoded)) as Effect.Effect<
+          ObjectDescribeResponse,
+          TransportError,
+          Transport
+        >;
       },
 
-      searchAssets(args: SearchAssetsArgs): Effect.Effect<SearchAssetsResponse, TransportError, Transport> {
+      searchAssets(
+        args: SearchAssetsArgs,
+      ): Effect.Effect<SearchAssetsResponse, TransportError, Transport> {
         const { query, timeoutMs, retry, ...searchOptions } = args;
         const body = Schema.encodeSync(SearchAssetsRequestSchema)({ query, ...searchOptions });
-        return self.sendEffect("PUT", "/remote/search/assets", body, SearchAssetsResponseSchema, {
-          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-          ...(retry !== undefined ? { retry } : {})
-        }).pipe(
-          Effect.map((result) => result.decoded)
-        ) as Effect.Effect<SearchAssetsResponse, TransportError, Transport>;
+        return self
+          .sendEffect("PUT", "/remote/search/assets", body, SearchAssetsResponseSchema, {
+            ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+            ...(retry !== undefined ? { retry } : {}),
+          })
+          .pipe(Effect.map((result) => result.decoded)) as Effect.Effect<
+          SearchAssetsResponse,
+          TransportError,
+          Transport
+        >;
       },
 
       info(options?: RequestOptionsBase): Effect.Effect<InfoResponse, TransportError, Transport> {
-        return self.sendEffect("GET", "/remote/info", undefined, InfoResponseSchema, options).pipe(
-          Effect.map((result) => result.decoded)
-        ) as Effect.Effect<InfoResponse, TransportError, Transport>;
+        return self
+          .sendEffect("GET", "/remote/info", undefined, InfoResponseSchema, options)
+          .pipe(Effect.map((result) => result.decoded)) as Effect.Effect<
+          InfoResponse,
+          TransportError,
+          Transport
+        >;
       },
 
-      event(request: ObjectEventRequest, options?: EventOptions): Effect.Effect<ObjectEventResponse, TransportError, Transport> {
+      event(
+        request: ObjectEventRequest,
+        options?: EventOptions,
+      ): Effect.Effect<ObjectEventResponse, TransportError, Transport> {
         const body = Schema.encodeSync(ObjectEventRequestSchema)(request);
-        return self.sendEffect("PUT", "/remote/object/event", body, ObjectEventResponseSchema, options).pipe(
-          Effect.map((result) => result.decoded)
-        ) as Effect.Effect<ObjectEventResponse, TransportError, Transport>;
+        return self
+          .sendEffect("PUT", "/remote/object/event", body, ObjectEventResponseSchema, options)
+          .pipe(Effect.map((result) => result.decoded)) as Effect.Effect<
+          ObjectEventResponse,
+          TransportError,
+          Transport
+        >;
       },
 
-      thumbnail(args: ThumbnailArgs): Effect.Effect<ObjectThumbnailResponse, TransportError, Transport> {
+      thumbnail(
+        args: ThumbnailArgs,
+      ): Effect.Effect<ObjectThumbnailResponse, TransportError, Transport> {
         const { objectPath, timeoutMs, retry } = args;
         const body = Schema.encodeSync(ObjectThumbnailRequestSchema)({ objectPath });
-        return self.sendEffect("PUT", "/remote/object/thumbnail", body, ObjectThumbnailResponseSchema, {
-          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-          ...(retry !== undefined ? { retry } : {})
-        }).pipe(
-          Effect.map((result) => result.decoded)
-        ) as Effect.Effect<ObjectThumbnailResponse, TransportError, Transport>;
+        return self
+          .sendEffect("PUT", "/remote/object/thumbnail", body, ObjectThumbnailResponseSchema, {
+            ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+            ...(retry !== undefined ? { retry } : {}),
+          })
+          .pipe(Effect.map((result) => result.decoded)) as Effect.Effect<
+          ObjectThumbnailResponse,
+          TransportError,
+          Transport
+        >;
       },
 
       batch(
         configure: (builder: BatchBuilder) => void,
-        options?: BatchOptions
+        options?: BatchOptions,
       ): Effect.Effect<BatchResult[], TransportError, Transport> {
         const builder = new BatchBuilder();
         configure(builder);
         const requests = builder.getRequests();
-        return self.sendEffect("PUT", "/remote/batch", buildBatchRequest(requests), BatchResponseSchema, options).pipe(
-          Effect.map((result) => correlateBatchResponses(requests, result.decoded))
-        ) as Effect.Effect<BatchResult[], TransportError, Transport>;
+        return self
+          .sendEffect(
+            "PUT",
+            "/remote/batch",
+            buildBatchRequest(requests),
+            BatchResponseSchema,
+            options,
+          )
+          .pipe(
+            Effect.map((result) => correlateBatchResponses(requests, result.decoded)),
+          ) as Effect.Effect<BatchResult[], TransportError, Transport>;
       },
 
       request<T = unknown>(args: RequestArgs<T>): Effect.Effect<T, TransportError, Transport> {
         const { verb, url, body, responseSchema, timeoutMs, retry } = args;
         if (responseSchema !== undefined) {
-          return self.sendEffect(verb, url, body, responseSchema, { timeoutMs, retry }).pipe(
-            Effect.map((result) => result.decoded)
-          ) as Effect.Effect<T, TransportError, Transport>;
+          return self
+            .sendEffect(verb, url, body, responseSchema, { timeoutMs, retry })
+            .pipe(Effect.map((result) => result.decoded)) as Effect.Effect<
+            T,
+            TransportError,
+            Transport
+          >;
         }
-        return self.sendEffectRaw(verb, url, body, { timeoutMs, retry }).pipe(
-          Effect.map((result) => result.body)
-        ) as Effect.Effect<T, TransportError, Transport>;
+        return self
+          .sendEffectRaw(verb, url, body, { timeoutMs, retry })
+          .pipe(Effect.map((result) => result.body)) as Effect.Effect<T, TransportError, Transport>;
       },
 
-      requestRaw(args: RequestRawArgs): Effect.Effect<TransportResponse, TransportError, Transport> {
+      requestRaw(
+        args: RequestRawArgs,
+      ): Effect.Effect<TransportResponse, TransportError, Transport> {
         const { verb, url, body, timeoutMs, retry } = args;
         return self.sendEffectRaw(verb, url, body, { timeoutMs, retry });
       },
 
       callReturn<T>(args: CallReturnArgs<T>): Effect.Effect<T, TransportError, Transport> {
-        const { objectPath, functionName, parameters, transaction, returnSchema, timeoutMs, retry } = args;
+        const {
+          objectPath,
+          functionName,
+          parameters,
+          transaction,
+          returnSchema,
+          timeoutMs,
+          retry,
+        } = args;
         const body = buildCallRequest({
           objectPath,
           functionName,
           ...(parameters !== undefined ? { parameters } : {}),
-          ...(transaction !== undefined ? { transaction } : {})
+          ...(transaction !== undefined ? { transaction } : {}),
         });
-        return self.sendEffect("PUT", "/remote/object/call", body, ObjectCallResponseSchema, { timeoutMs, retry }).pipe(
-          Effect.map((result) => normalizeCallResponse(result.decoded)),
-          Effect.flatMap((normalized) => {
-            if (normalized.ReturnValue === undefined) {
-              return Effect.fail(
-                new DecodeError({
-                  message: "callReturn: ReturnValue not present in response",
-                  verb: "PUT",
-                  url: "/remote/object/call"
-                })
-              ) as Effect.Effect<T, TransportError>;
-            }
-            return Schema.decodeUnknownEffect(returnSchema)(normalized.ReturnValue).pipe(
-              Effect.mapError(
-                (cause) =>
+        return self
+          .sendEffect("PUT", "/remote/object/call", body, ObjectCallResponseSchema, {
+            timeoutMs,
+            retry,
+          })
+          .pipe(
+            Effect.map((result) => normalizeCallResponse(result.decoded)),
+            Effect.flatMap((normalized) => {
+              if (normalized.ReturnValue === undefined) {
+                return Effect.fail(
                   new DecodeError({
-                    message: "callReturn: failed to decode ReturnValue",
+                    message: "callReturn: ReturnValue not present in response",
                     verb: "PUT",
                     url: "/remote/object/call",
-                    details: normalized.ReturnValue,
-                    cause
-                  })
-              )
-            ) as Effect.Effect<T, TransportError>;
-          })
-        ) as Effect.Effect<T, TransportError, Transport>;
+                  }),
+                ) as Effect.Effect<T, TransportError>;
+              }
+              return Schema.decodeUnknownEffect(returnSchema)(normalized.ReturnValue).pipe(
+                Effect.mapError(
+                  (cause) =>
+                    new DecodeError({
+                      message: "callReturn: failed to decode ReturnValue",
+                      verb: "PUT",
+                      url: "/remote/object/call",
+                      details: normalized.ReturnValue,
+                      cause,
+                    }),
+                ),
+              ) as Effect.Effect<T, TransportError>;
+            }),
+          ) as Effect.Effect<T, TransportError, Transport>;
       },
 
       ping(options?: PingOptions): Effect.Effect<PingResult, never, Transport> {
         const timeoutMs = options?.timeoutMs ?? 2000;
         return Effect.suspend(() => {
           const startTime = Date.now();
-          return (sendRequest({ verb: "GET", url: "/remote/info", body: undefined, timeoutMs }) as Effect.Effect<
-            { body: unknown; statusCode?: number | undefined; requestId?: number | string | undefined },
-            TransportError,
-            Transport
-          >).pipe(
-            Effect.map(() => ({ reachable: true, latencyMs: Date.now() - startTime } as PingResult)),
-            Effect.catchCause(() => Effect.succeed({ reachable: false, latencyMs: undefined } as PingResult))
+          return (
+            sendRequest({
+              verb: "GET",
+              url: "/remote/info",
+              body: undefined,
+              timeoutMs,
+            }) as Effect.Effect<
+              {
+                body: unknown;
+                statusCode?: number | undefined;
+                requestId?: number | string | undefined;
+              },
+              TransportError,
+              Transport
+            >
+          ).pipe(
+            Effect.map(
+              () => ({ reachable: true, latencyMs: Date.now() - startTime }) as PingResult,
+            ),
+            Effect.catchCause(() =>
+              Effect.succeed({ reachable: false, latencyMs: undefined } as PingResult),
+            ),
           ) as Effect.Effect<PingResult, never, Transport>;
         }) as Effect.Effect<PingResult, never, Transport>;
       },
@@ -460,7 +569,7 @@ export class UnrealRC {
 
       dispose(): Effect.Effect<void, never, Transport> {
         return Transport.use((transport) => transport.dispose);
-      }
+      },
     };
   }
 
@@ -472,11 +581,11 @@ export class UnrealRC {
       objectPath,
       functionName,
       ...(parameters !== undefined ? { parameters } : {}),
-      ...(transaction !== undefined ? { transaction } : {})
+      ...(transaction !== undefined ? { transaction } : {}),
     });
     const response = await this.send("PUT", "/remote/object/call", body, ObjectCallResponseSchema, {
       ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-      ...(retry !== undefined ? { retry } : {})
+      ...(retry !== undefined ? { retry } : {}),
     });
     return normalizeCallResponse(response);
   }
@@ -485,14 +594,17 @@ export class UnrealRC {
     const { objectPath, propertyName, access, timeoutMs, retry } = args;
     const body = buildPropertyRequest(objectPath, {
       propertyName,
-      access: access ?? "READ_ACCESS"
+      access: access ?? "READ_ACCESS",
     });
     const response = await this.send(
       "PUT",
       "/remote/object/property",
       body,
       ObjectPropertyResponseSchema,
-      { ...(timeoutMs !== undefined ? { timeoutMs } : {}), ...(retry !== undefined ? { retry } : {}) }
+      {
+        ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+        ...(retry !== undefined ? { retry } : {}),
+      },
     );
     return parseReturnValue<T>(response, propertyName) ?? parseReturnValue<T>(response);
   }
@@ -500,14 +612,17 @@ export class UnrealRC {
   async getProperties<T = Record<string, unknown>>(args: GetPropertiesArgs): Promise<T> {
     const { objectPath, access, timeoutMs, retry } = args;
     const body = buildPropertyRequest(objectPath, {
-      access: access ?? "READ_ACCESS"
+      access: access ?? "READ_ACCESS",
     });
     const response = await this.send(
       "PUT",
       "/remote/object/property",
       body,
       ObjectPropertyResponseSchema,
-      { ...(timeoutMs !== undefined ? { timeoutMs } : {}), ...(retry !== undefined ? { retry } : {}) }
+      {
+        ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+        ...(retry !== undefined ? { retry } : {}),
+      },
     );
     return parseReturnValue<T>(response) ?? (response as T);
   }
@@ -518,14 +633,17 @@ export class UnrealRC {
       propertyName,
       propertyValue,
       ...(access !== undefined ? { access } : {}),
-      ...(transaction !== undefined ? { transaction } : {})
+      ...(transaction !== undefined ? { transaction } : {}),
     });
     const response = await this.send(
       "PUT",
       "/remote/object/property",
       body,
       ObjectPropertyResponseSchema,
-      { ...(timeoutMs !== undefined ? { timeoutMs } : {}), ...(retry !== undefined ? { retry } : {}) }
+      {
+        ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+        ...(retry !== undefined ? { retry } : {}),
+      },
     );
     return response ?? ({} as ObjectPropertyResponse);
   }
@@ -537,7 +655,10 @@ export class UnrealRC {
       "/remote/object/describe",
       buildDescribeRequest(objectPath),
       ObjectDescribeResponseSchema,
-      { ...(timeoutMs !== undefined ? { timeoutMs } : {}), ...(retry !== undefined ? { retry } : {}) }
+      {
+        ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+        ...(retry !== undefined ? { retry } : {}),
+      },
     );
   }
 
@@ -546,7 +667,7 @@ export class UnrealRC {
     const body = Schema.encodeSync(SearchAssetsRequestSchema)({ query, ...searchOptions });
     return this.send("PUT", "/remote/search/assets", body, SearchAssetsResponseSchema, {
       ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-      ...(retry !== undefined ? { retry } : {})
+      ...(retry !== undefined ? { retry } : {}),
     });
   }
 
@@ -564,13 +685,13 @@ export class UnrealRC {
     const body = Schema.encodeSync(ObjectThumbnailRequestSchema)({ objectPath });
     return this.send("PUT", "/remote/object/thumbnail", body, ObjectThumbnailResponseSchema, {
       ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-      ...(retry !== undefined ? { retry } : {})
+      ...(retry !== undefined ? { retry } : {}),
     });
   }
 
   async batch(
     configure: (builder: BatchBuilder) => void | Promise<void>,
-    options?: BatchOptions
+    options?: BatchOptions,
   ): Promise<BatchResult[]> {
     const builder = new BatchBuilder();
     await configure(builder);
@@ -580,7 +701,7 @@ export class UnrealRC {
       "/remote/batch",
       buildBatchRequest(requests),
       BatchResponseSchema,
-      options
+      options,
     );
     return correlateBatchResponses(requests, response);
   }
@@ -607,7 +728,7 @@ export class UnrealRC {
       healthy: false,
       latencyMs: undefined,
       consecutiveFailures: 0,
-      lastSeen: undefined
+      lastSeen: undefined,
     };
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -625,7 +746,7 @@ export class UnrealRC {
           healthy: true,
           latencyMs: result.latencyMs,
           consecutiveFailures: 0,
-          lastSeen: new Date()
+          lastSeen: new Date(),
         };
         currentStatus = nextStatus;
 
@@ -639,7 +760,7 @@ export class UnrealRC {
           healthy: nextHealthy,
           latencyMs: undefined,
           consecutiveFailures: nextFailures,
-          lastSeen: currentStatus.lastSeen
+          lastSeen: currentStatus.lastSeen,
         };
         currentStatus = nextStatus;
 
@@ -649,12 +770,16 @@ export class UnrealRC {
       }
 
       if (!disposed) {
-        timer = setTimeout(() => { tick().catch(() => {}); }, intervalMs);
+        timer = setTimeout(() => {
+          tick().catch(() => {});
+        }, intervalMs);
       }
     };
 
     // Start the first tick immediately
-    timer = setTimeout(() => { tick().catch(() => {}); }, 0);
+    timer = setTimeout(() => {
+      tick().catch(() => {});
+    }, 0);
 
     return {
       status: () => currentStatus,
@@ -664,14 +789,12 @@ export class UnrealRC {
           clearTimeout(timer);
           timer = undefined;
         }
-      }
+      },
     };
   }
 
   async pendingRequests(): Promise<readonly PendingRequestInfo[]> {
-    return this.runtime.runPromise(
-      Transport.use((transport) => transport.pendingRequests)
-    );
+    return this.runtime.runPromise(Transport.use((transport) => transport.pendingRequests));
   }
 
   // ── Generic requests ───────────────────────────────────────────────
@@ -693,21 +816,25 @@ export class UnrealRC {
   // ── callReturn ─────────────────────────────────────────────────────
 
   async callReturn<T>(args: CallReturnArgs<T>): Promise<T> {
-    const { objectPath, functionName, parameters, transaction, returnSchema, timeoutMs, retry } = args;
+    const { objectPath, functionName, parameters, transaction, returnSchema, timeoutMs, retry } =
+      args;
     const body = buildCallRequest({
       objectPath,
       functionName,
       ...(parameters !== undefined ? { parameters } : {}),
-      ...(transaction !== undefined ? { transaction } : {})
+      ...(transaction !== undefined ? { transaction } : {}),
     });
-    const response = await this.send("PUT", "/remote/object/call", body, ObjectCallResponseSchema, { timeoutMs, retry });
+    const response = await this.send("PUT", "/remote/object/call", body, ObjectCallResponseSchema, {
+      timeoutMs,
+      retry,
+    });
     const normalized = normalizeCallResponse(response);
 
     if (normalized.ReturnValue === undefined) {
       throw new TransportRequestError("callReturn: ReturnValue not present in response", {
         kind: "decode",
         verb: "PUT",
-        url: "/remote/object/call"
+        url: "/remote/object/call",
       });
     }
 
@@ -722,7 +849,7 @@ export class UnrealRC {
         verb: "PUT",
         url: "/remote/object/call",
         details: normalized.ReturnValue,
-        cause
+        cause,
       });
     }
   }
@@ -730,9 +857,7 @@ export class UnrealRC {
   // ── Lifecycle ───────────────────────────────────────────────────────
 
   async dispose(): Promise<void> {
-    await this.runtime.runPromise(
-      Transport.use((transport) => transport.dispose)
-    ).catch(() => {});
+    await this.runtime.runPromise(Transport.use((transport) => transport.dispose)).catch(() => {});
     await this.runtime.dispose();
   }
 
@@ -743,7 +868,7 @@ export class UnrealRC {
     url: string,
     body: unknown,
     responseSchema: Schema.Schema<T>,
-    options?: RequestOptionsBase
+    options?: RequestOptionsBase,
   ): Effect.Effect<SendResult<T>, TransportError, Transport> {
     const retryConfig = this.resolveRetryConfig(options?.retry, verb as HttpVerb, url);
     const validateResponses = this.validateResponses;
@@ -756,7 +881,7 @@ export class UnrealRC {
       verb,
       url,
       body,
-      timeoutMs: options?.timeoutMs
+      timeoutMs: options?.timeoutMs,
     }).pipe(
       Effect.annotateLogs({ transport: transportName, verb, url }),
       Effect.flatMap((response) => {
@@ -765,28 +890,30 @@ export class UnrealRC {
             decoded: response.body as T,
             statusCode: response.statusCode,
             requestId: response.requestId,
-            rawBody: response.body
+            rawBody: response.body,
           } as SendResult<T>).pipe(
             Effect.annotateLogs({
               statusCode: String(response.statusCode ?? ""),
-              requestId: String(response.requestId ?? "")
-            })
+              requestId: String(response.requestId ?? ""),
+            }),
           );
         }
         const decodeInput = response.body ?? {};
-        return Schema.decodeUnknownEffect(responseSchema)(
-          decodeInput,
-          { onExcessProperty: "preserve" }
-        ).pipe(
-          Effect.map((decoded) => ({
-            decoded,
-            statusCode: response.statusCode,
-            requestId: response.requestId,
-            rawBody: response.body
-          } as SendResult<T>)),
+        return Schema.decodeUnknownEffect(responseSchema)(decodeInput, {
+          onExcessProperty: "preserve",
+        }).pipe(
+          Effect.map(
+            (decoded) =>
+              ({
+                decoded,
+                statusCode: response.statusCode,
+                requestId: response.requestId,
+                rawBody: response.body,
+              }) as SendResult<T>,
+          ),
           Effect.annotateLogs({
             statusCode: String(response.statusCode ?? ""),
-            requestId: String(response.requestId ?? "")
+            requestId: String(response.requestId ?? ""),
           }),
           Effect.mapError(
             (parseError) =>
@@ -795,16 +922,15 @@ export class UnrealRC {
                 verb,
                 url,
                 details: response.body,
-                cause: parseError
-              })
-          )
+                cause: parseError,
+              }),
+          ),
         );
-      })
+      }),
     ) as Effect.Effect<SendResult<T>, TransportError, Transport>;
 
-    const retriedPipeline = retryConfig === false
-      ? dispatchPipeline
-      : withRetry(dispatchPipeline, retryConfig);
+    const retriedPipeline =
+      retryConfig === false ? dispatchPipeline : withRetry(dispatchPipeline, retryConfig);
 
     // Wrap with Effect-native hooks (errors propagate intentionally)
     if (!onRequestEffect && !onResponseEffect && !onErrorEffect) {
@@ -817,7 +943,7 @@ export class UnrealRC {
           transport: transportName,
           verb: verb as HttpVerb,
           url,
-          body: body as unknown
+          body: body as unknown,
         });
       }
 
@@ -832,19 +958,24 @@ export class UnrealRC {
               body: body as unknown,
               statusCode: result.statusCode,
               requestId: result.requestId,
-              durationMs: Date.now() - startTime
+              durationMs: Date.now() - startTime,
             });
           }
           return Effect.void;
         }),
         Effect.tapError((error) => {
           if (onErrorEffect) {
-            const statusCode = error._tag === "HttpStatusError" || error._tag === "RemoteStatusError"
-              ? (error as unknown as { statusCode: number }).statusCode
-              : undefined;
-            const requestId = error._tag === "TimeoutError" || error._tag === "HttpStatusError" || error._tag === "RemoteStatusError" || error._tag === "DecodeError"
-              ? (error as unknown as { requestId?: number | string }).requestId
-              : undefined;
+            const statusCode =
+              error._tag === "HttpStatusError" || error._tag === "RemoteStatusError"
+                ? (error as unknown as { statusCode: number }).statusCode
+                : undefined;
+            const requestId =
+              error._tag === "TimeoutError" ||
+              error._tag === "HttpStatusError" ||
+              error._tag === "RemoteStatusError" ||
+              error._tag === "DecodeError"
+                ? (error as unknown as { requestId?: number | string }).requestId
+                : undefined;
             return onErrorEffect({
               transport: transportName,
               verb: verb as HttpVerb,
@@ -853,11 +984,11 @@ export class UnrealRC {
               error,
               durationMs: Date.now() - startTime,
               statusCode,
-              requestId
+              requestId,
             });
           }
           return Effect.void;
-        })
+        }),
       );
     }) as Effect.Effect<SendResult<T>, TransportError, Transport>;
   }
@@ -866,7 +997,7 @@ export class UnrealRC {
     verb: string,
     url: string,
     body: unknown,
-    timeoutMs: number | undefined
+    timeoutMs: number | undefined,
   ): Promise<{ latencyMs: number }> {
     const startTime = Date.now();
     await this.runtime.runPromise(sendRequest({ verb, url, body, timeoutMs }));
@@ -878,13 +1009,13 @@ export class UnrealRC {
     url: string,
     body: unknown,
     responseSchema: Schema.Schema<T>,
-    options?: RequestOptionsBase
+    options?: RequestOptionsBase,
   ): Promise<T> {
     const startTime = Date.now();
     this.fireRequestHook(verb as HttpVerb, url, body);
 
     const effect = this.sendEffect(verb, url, body, responseSchema, options).pipe(
-      Effect.mapError(toPublicError)
+      Effect.mapError(toPublicError),
     );
 
     try {
@@ -906,20 +1037,26 @@ export class UnrealRC {
         verb,
         url,
         body: redactedBody,
-        attempt: 1
+        attempt: 1,
       });
       if (result && typeof (result as Promise<void>).catch === "function") {
         (result as Promise<void>).catch(() => {});
       }
-    } catch { /* ignore hook errors */ }
+    } catch {
+      /* ignore hook errors */
+    }
   }
 
   private fireResponseHook(
     verb: HttpVerb,
     url: string,
     requestBody: unknown,
-    result: { statusCode?: number | undefined; requestId?: number | string | undefined; rawBody: unknown },
-    startTime: number
+    result: {
+      statusCode?: number | undefined;
+      requestId?: number | string | undefined;
+      rawBody: unknown;
+    },
+    startTime: number,
   ): void {
     if (!this._onResponse) return;
     const durationMs = Date.now() - startTime;
@@ -928,17 +1065,26 @@ export class UnrealRC {
         transport: this.transportName,
         verb,
         url,
-        body: this.redact(result.rawBody, "response", verb, url, result.statusCode, result.requestId),
+        body: this.redact(
+          result.rawBody,
+          "response",
+          verb,
+          url,
+          result.statusCode,
+          result.requestId,
+        ),
         requestBody: this.redact(requestBody, "request", verb, url),
         attempt: 1,
         durationMs,
         statusCode: result.statusCode,
-        requestId: result.requestId
+        requestId: result.requestId,
       });
       if (hookResult && typeof (hookResult as Promise<void>).catch === "function") {
         (hookResult as Promise<void>).catch(() => {});
       }
-    } catch { /* ignore hook errors */ }
+    } catch {
+      /* ignore hook errors */
+    }
   }
 
   private fireErrorHook(
@@ -946,7 +1092,7 @@ export class UnrealRC {
     url: string,
     requestBody: unknown,
     error: unknown,
-    startTime: number
+    startTime: number,
   ): void {
     if (!this._onError) return;
     const durationMs = Date.now() - startTime;
@@ -959,16 +1105,25 @@ export class UnrealRC {
         url,
         body: this.redact(requestBody, "request", verb, url),
         error: publicError,
-        errorBody: this.redact(publicError.details, "error", verb, url, publicError.statusCode, publicError.requestId),
+        errorBody: this.redact(
+          publicError.details,
+          "error",
+          verb,
+          url,
+          publicError.statusCode,
+          publicError.requestId,
+        ),
         attempt: 1,
         durationMs,
         statusCode: publicError.statusCode,
-        requestId: publicError.requestId
+        requestId: publicError.requestId,
       });
       if (hookResult && typeof (hookResult as Promise<void>).catch === "function") {
         (hookResult as Promise<void>).catch(() => {});
       }
-    } catch { /* ignore hook errors */ }
+    } catch {
+      /* ignore hook errors */
+    }
   }
 
   private redact(
@@ -977,7 +1132,7 @@ export class UnrealRC {
     verb: HttpVerb,
     url: string,
     statusCode?: number,
-    requestId?: number | string
+    requestId?: number | string,
   ): unknown {
     if (!this._redactPayload) return payload;
     try {
@@ -988,7 +1143,7 @@ export class UnrealRC {
         url,
         attempt: 1,
         statusCode,
-        requestId
+        requestId,
       });
     } catch {
       return "[redaction_failed]";
@@ -998,8 +1153,10 @@ export class UnrealRC {
   private resolveRetryConfig(
     retry: RetryOptions | undefined,
     verb: HttpVerb,
-    url: string
-  ): { maxAttempts: number; baseDelayMs: number; shouldRetry?: (error: TransportError) => boolean } | false {
+    url: string,
+  ):
+    | { maxAttempts: number; baseDelayMs: number; shouldRetry?: (error: TransportError) => boolean }
+    | false {
     if (retry === false) return false;
 
     const source = retry ?? this.defaultRetry;
@@ -1008,11 +1165,19 @@ export class UnrealRC {
     const policy = source === true ? {} : source;
     const maxAttempts = Math.max(1, Math.floor(policy.maxAttempts ?? DEFAULT_RETRY_MAX_ATTEMPTS));
     const rawDelay = policy.delayMs;
-    const baseDelayMs = typeof rawDelay === "number"
-      ? rawDelay
-      : typeof rawDelay === "function"
-        ? rawDelay({ attempt: 1, maxAttempts, error: new TransportRequestError("init"), transport: this.transportName, verb, url })
-        : 100;
+    const baseDelayMs =
+      typeof rawDelay === "number"
+        ? rawDelay
+        : typeof rawDelay === "function"
+          ? rawDelay({
+              attempt: 1,
+              maxAttempts,
+              error: new TransportRequestError("init"),
+              transport: this.transportName,
+              verb,
+              url,
+            })
+          : 100;
 
     const userShouldRetry = policy.shouldRetry;
     const transportName = this.transportName;
@@ -1027,7 +1192,7 @@ export class UnrealRC {
             verb,
             url,
             statusCode: publicError.statusCode,
-            requestId: publicError.requestId
+            requestId: publicError.requestId,
           });
         }
       : undefined;
@@ -1041,22 +1206,28 @@ export class UnrealRC {
     verb: string,
     url: string,
     body: unknown,
-    options?: RequestOptionsBase
+    options?: RequestOptionsBase,
   ): Promise<TransportResponse> {
     const startTime = Date.now();
     this.fireRequestHook(verb as HttpVerb, url, body);
 
     const effect = this.sendEffectRaw(verb, url, body, options).pipe(
-      Effect.mapError(toPublicError)
+      Effect.mapError(toPublicError),
     ) as Effect.Effect<TransportResponse, TransportRequestError, never>;
 
     try {
       const result = await this.runtime.runPromise(effect);
-      this.fireResponseHook(verb as HttpVerb, url, body, {
-        statusCode: result.statusCode,
-        requestId: result.requestId,
-        rawBody: result.body
-      }, startTime);
+      this.fireResponseHook(
+        verb as HttpVerb,
+        url,
+        body,
+        {
+          statusCode: result.statusCode,
+          requestId: result.requestId,
+          rawBody: result.body,
+        },
+        startTime,
+      );
       return result;
     } catch (error) {
       this.fireErrorHook(verb as HttpVerb, url, body, error, startTime);
@@ -1070,7 +1241,7 @@ export class UnrealRC {
     verb: string,
     url: string,
     body: unknown,
-    options?: RequestOptionsBase
+    options?: RequestOptionsBase,
   ): Effect.Effect<TransportResponse, TransportError, Transport> {
     const retryConfig = this.resolveRetryConfig(options?.retry, verb as HttpVerb, url);
     const transportName = this.transportName;
@@ -1084,15 +1255,14 @@ export class UnrealRC {
         Effect.succeed(response).pipe(
           Effect.annotateLogs({
             statusCode: String(response.statusCode ?? ""),
-            requestId: String(response.requestId ?? "")
-          })
-        )
-      )
+            requestId: String(response.requestId ?? ""),
+          }),
+        ),
+      ),
     ) as Effect.Effect<TransportResponse, TransportError, Transport>;
 
-    const retriedPipeline = retryConfig === false
-      ? dispatchPipeline
-      : withRetry(dispatchPipeline, retryConfig);
+    const retriedPipeline =
+      retryConfig === false ? dispatchPipeline : withRetry(dispatchPipeline, retryConfig);
 
     if (!onRequestEffect && !onResponseEffect && !onErrorEffect) {
       return retriedPipeline;
@@ -1104,7 +1274,7 @@ export class UnrealRC {
           transport: transportName,
           verb: verb as HttpVerb,
           url,
-          body: body as unknown
+          body: body as unknown,
         });
       }
 
@@ -1119,19 +1289,24 @@ export class UnrealRC {
               body: body as unknown,
               statusCode: result.statusCode,
               requestId: result.requestId,
-              durationMs: Date.now() - startTime
+              durationMs: Date.now() - startTime,
             });
           }
           return Effect.void;
         }),
         Effect.tapError((error) => {
           if (onErrorEffect) {
-            const statusCode = error._tag === "HttpStatusError" || error._tag === "RemoteStatusError"
-              ? (error as unknown as { statusCode: number }).statusCode
-              : undefined;
-            const requestId = error._tag === "TimeoutError" || error._tag === "HttpStatusError" || error._tag === "RemoteStatusError" || error._tag === "DecodeError"
-              ? (error as unknown as { requestId?: number | string }).requestId
-              : undefined;
+            const statusCode =
+              error._tag === "HttpStatusError" || error._tag === "RemoteStatusError"
+                ? (error as unknown as { statusCode: number }).statusCode
+                : undefined;
+            const requestId =
+              error._tag === "TimeoutError" ||
+              error._tag === "HttpStatusError" ||
+              error._tag === "RemoteStatusError" ||
+              error._tag === "DecodeError"
+                ? (error as unknown as { requestId?: number | string }).requestId
+                : undefined;
             return onErrorEffect({
               transport: transportName,
               verb: verb as HttpVerb,
@@ -1140,11 +1315,11 @@ export class UnrealRC {
               error,
               durationMs: Date.now() - startTime,
               statusCode,
-              requestId
+              requestId,
             });
           }
           return Effect.void;
-        })
+        }),
       );
     }) as Effect.Effect<TransportResponse, TransportError, Transport>;
   }

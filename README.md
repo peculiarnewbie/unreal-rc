@@ -4,12 +4,12 @@ A typed TypeScript client for [Unreal Engine's Remote Control](https://dev.epicg
 
 ## Packages
 
-| Package | Description | Status |
-|---------|-------------|--------|
+| Package                            | Description                                       | Status    |
+| ---------------------------------- | ------------------------------------------------- | --------- |
 | [`packages/core`](./packages/core) | Runtime client library (published as `unreal-rc`) | Available |
-| `packages/codegen` | Source parser / type generator | Planned |
-| `packages/explorer` | Local GUI app for exploring RC endpoints | Planned |
-| `packages/www` | Documentation site | Planned |
+| `packages/codegen`                 | Source parser / type generator                    | Planned   |
+| `packages/explorer`                | Local GUI app for exploring RC endpoints          | Planned   |
+| `packages/www`                     | Documentation site                                | Planned   |
 
 ## Prerequisites
 
@@ -18,10 +18,10 @@ A typed TypeScript client for [Unreal Engine's Remote Control](https://dev.epicg
 
 The Remote Control plugin exposes two endpoints on localhost:
 
-| Protocol | Default Port | Use Case |
-|----------|-------------|----------|
-| HTTP | `30010` | Simple request/response |
-| WebSocket | `30020` | Persistent connection with auto-reconnect |
+| Protocol  | Default Port | Use Case                                  |
+| --------- | ------------ | ----------------------------------------- |
+| HTTP      | `30010`      | Simple request/response                   |
+| WebSocket | `30020`      | Persistent connection with auto-reconnect |
 
 ## Quick Start
 
@@ -35,16 +35,14 @@ import { UnrealRC } from "unreal-rc";
 const ue = new UnrealRC(); // defaults to WebSocket on 127.0.0.1:30020
 
 // Call a function on an actor
-await ue.call(
-  "/Game/Maps/Main.Main:PersistentLevel.MyActor",
-  "SetActorHiddenInGame",
-  { bNewHidden: false }
-);
+await ue.call("/Game/Maps/Main.Main:PersistentLevel.MyActor", "SetActorHiddenInGame", {
+  bNewHidden: false,
+});
 
 // Read a property
 const location = await ue.getProperty(
   "/Game/Maps/Main.Main:PersistentLevel.MyActor",
-  "RelativeLocation"
+  "RelativeLocation",
 );
 
 // Clean up
@@ -56,17 +54,17 @@ See the [core package README](./packages/core/README.md) for full API documentat
 ## Development
 
 ```bash
-bun install
-bun run typecheck
-bun run build
+pnpm install
+pnpm typecheck
+pnpm build
 ```
 
 ### Working on core
 
 ```bash
-bun run --cwd packages/core typecheck
-bun run --cwd packages/core build
-bun run --cwd packages/core test
+pnpm --filter unreal-rc typecheck
+pnpm --filter unreal-rc build
+pnpm --filter unreal-rc test
 ```
 
 ### E2E Tests
@@ -87,18 +85,18 @@ E2E tests launch a real Unreal Editor instance and exercise the full protocol.
 
 ```bash
 # Fixture management
-bun run fixture:status
-bun run fixture:init
-bun run fixture:update
+pnpm fixture:status
+pnpm fixture:init
+pnpm fixture:update
 
 # Run E2E tests
-bun run test:e2e
+pnpm test:e2e
 
 # With explicit engine root
-UNREAL_ENGINE_ROOT="/Users/Shared/Epic Games/UE_5.7" bun run test:e2e
+UNREAL_ENGINE_ROOT="/Users/Shared/Epic Games/UE_5.7" pnpm test:e2e
 
 # With a custom fixture directory
-UNREAL_FIXTURE_DIR=/abs/path/to/project bun run test:e2e
+UNREAL_FIXTURE_DIR=/abs/path/to/project pnpm test:e2e
 ```
 
 More detail is in [`fixtures/README.md`](./fixtures/README.md).

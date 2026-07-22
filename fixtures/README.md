@@ -22,13 +22,13 @@ git commit -m "Add Unreal fixture submodule"
 After the submodule exists, contributors can provision it with:
 
 ```bash
-bun run fixture:init
+pnpm fixture:init
 ```
 
 To update the pinned fixture revision later:
 
 ```bash
-bun run fixture:update
+pnpm fixture:update
 git add fixtures/unreal-project
 git commit -m "Update Unreal fixture"
 ```
@@ -50,19 +50,19 @@ git submodule update --init --recursive
 Repo helper command:
 
 ```bash
-bun run fixture:init
+pnpm fixture:init
 ```
 
 Check what fixture the repo will use:
 
 ```bash
-bun run fixture:status
+pnpm fixture:status
 ```
 
 Run Unreal-backed tests once they exist:
 
 ```bash
-bun run test:e2e
+pnpm test:e2e
 ```
 
 ## Custom Path Flow
@@ -70,8 +70,8 @@ bun run test:e2e
 If you already have a local Unreal project outside this repository, point the test harness at it:
 
 ```bash
-UNREAL_FIXTURE_DIR=/abs/path/to/project bun run fixture:status
-UNREAL_FIXTURE_DIR=/abs/path/to/project bun run test:e2e
+UNREAL_FIXTURE_DIR=/abs/path/to/project pnpm fixture:status
+UNREAL_FIXTURE_DIR=/abs/path/to/project pnpm test:e2e
 ```
 
 The custom path must point at a project root containing exactly one `.uproject` file at the top level.

@@ -47,8 +47,8 @@ export function filter(
       for (const child of pkg.Children) {
         if (child.Kind === "Class") {
           const cls = child as UhtClass;
-          const matchedFunctions = cls.Functions.filter(
-            (fn) => matchesFunctionFlags(fn, config.functionFlags),
+          const matchedFunctions = cls.Functions.filter((fn) =>
+            matchesFunctionFlags(fn, config.functionFlags),
           );
 
           if (matchedFunctions.length > 0) {

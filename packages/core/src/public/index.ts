@@ -25,7 +25,7 @@ export type {
   ThumbnailArgs,
   UnrealRCOptions,
   WatchHealthOptions,
-  WritableAccessMode
+  WritableAccessMode,
 } from "./client.js";
 
 // ── Batch ──────────────────────────────────────────────────────────────
@@ -34,7 +34,7 @@ export {
   buildBatchRequest,
   buildCallRequest,
   buildDescribeRequest,
-  buildPropertyRequest
+  buildPropertyRequest,
 } from "../internal/batch.js";
 export type {
   BatchResult,
@@ -42,7 +42,7 @@ export type {
   BuildGetPropertyArgs,
   BuildPropertyRequestOptions,
   BuildSearchAssetsArgs,
-  BuildSetPropertyArgs
+  BuildSetPropertyArgs,
 } from "../internal/batch.js";
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ export {
   piePath,
   rotator,
   transform,
-  vector
+  vector,
 } from "./helpers.js";
 
 // ── Errors ─────────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ export type {
   SearchAssetsRequest,
   SearchAssetsResponse,
   TransportRequestErrorKind,
-  TransportRequestId
+  TransportRequestId,
 } from "./types.js";
 
 // ── Schemas ────────────────────────────────────────────────────────────
@@ -121,7 +121,7 @@ export {
   PropertyMetadataSchema,
   RouteInfoSchema,
   SearchAssetsRequestSchema,
-  SearchAssetsResponseSchema
+  SearchAssetsResponseSchema,
 } from "../internal/schemas.js";
 
 // ── Config schemas ───────────────────────────────────────────────────────
@@ -131,7 +131,7 @@ export {
   RuntimeConfigSchema,
   RetryPolicySchema,
   UnrealRCOptionsSchema,
-  WatchHealthOptionsSchema
+  WatchHealthOptionsSchema,
 } from "../internal/config-schemas.js";
 
 // ── Transport layers (advanced usage) ──────────────────────────────────
