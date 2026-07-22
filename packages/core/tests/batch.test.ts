@@ -232,6 +232,16 @@ describe("pure protocol builders", () => {
     expect(req.parameters).toBeUndefined();
   });
 
+  test("buildCallRequest preserves an explicit disabled transaction", () => {
+    const req = buildCallRequest({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "Ping",
+      transaction: false
+    });
+
+    expect(req.generateTransaction).toBe(false);
+  });
+
   test("buildPropertyRequest normalizes scalar value into property map", () => {
     const req = buildPropertyRequest("/Game/Maps/Main.Main:Actor", {
       propertyName: "Health",

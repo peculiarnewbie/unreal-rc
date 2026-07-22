@@ -71,7 +71,7 @@ export function buildCallRequest(args: BuildCallArgs): ObjectCallRequest {
     objectPath,
     functionName,
     ...(parameters !== undefined ? { parameters } : {}),
-    ...(transaction !== undefined ? { generateTransaction: true } : {})
+    ...(transaction !== undefined ? { generateTransaction: transaction } : {})
   }) as ObjectCallRequest;
 }
 

@@ -182,6 +182,23 @@ describe("UnrealRC client", () => {
     });
   });
 
+  test("preserves an explicitly disabled call transaction", async () => {
+    const { client, requests } = makeHttpClient([
+      { body: { ReturnValue: 123 }, statusCode: 200 }
+    ]);
+
+    await client.call({
+      objectPath: "/Game/Maps/Main.Main:Actor",
+      functionName: "ReadWithoutTransaction",
+      transaction: false
+    });
+
+    expect(requests[0]?.body).toMatchObject({
+      functionName: "ReadWithoutTransaction",
+      generateTransaction: false
+    });
+  });
+
   test("normalizes single-output call responses onto ReturnValue", async () => {
     const { client } = makeHttpClient([
       { body: { OutCounter: 123 }, statusCode: 200 }
