@@ -18,7 +18,7 @@ launchHttpPortTest(
       const httpRoutes = httpStatus.info.HttpRoutes ?? httpStatus.info.Routes ?? [];
 
       expect(httpStatus.portReachable).toBe(true);
-      expect(httpStatus.endpointUrl).toEndWith("/remote/info");
+      expect(httpStatus.endpointUrl.endsWith("/remote/info")).toBe(true);
       expect(httpRoutes.length).toBeGreaterThan(0);
       expect(
         httpRoutes.some(

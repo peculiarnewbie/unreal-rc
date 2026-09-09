@@ -11,24 +11,12 @@ export interface PendingRequest {
   readonly timeoutMs: number | undefined;
 }
 
-export interface PendingRequestSnapshot {
-  readonly requestId: number;
-  readonly verb: string;
-  readonly url: string;
-  readonly startedAt: number;
-  readonly timeoutMs: number | undefined;
-}
+export type PendingRequestSnapshot = Omit<PendingRequest, "deferred">;
 
 export interface PendingRequestsService {
   readonly nextId: Effect.Effect<number>;
   readonly get: (requestId: number) => Effect.Effect<PendingRequest | undefined>;
-  readonly add: (
-    requestId: number,
-    verb: string,
-    url: string,
-    startedAt: number,
-    timeoutMs: number | undefined,
-  ) => Effect.Effect<Deferred.Deferred<TransportResponse, TransportError>>;
+  readonly add: (request: PendingRequest) => Effect.Effect<void>;
   readonly resolve: (requestId: number, response: TransportResponse) => Effect.Effect<void>;
   readonly reject: (requestId: number, error: TransportError) => Effect.Effect<void>;
   readonly rejectAll: (error: TransportError) => Effect.Effect<void>;
@@ -43,6 +31,8 @@ export const PendingRequestsLive: Layer.Layer<PendingRequests> = Layer.effect(Pe
   Effect.gen(function* () {
     const counter = yield* Ref.make(1);
     const pending = yield* Ref.make(HashMap.empty<number, PendingRequest>());
+    const take = (requestId: number) =>
+      Ref.modify(pending, (map) => [HashMap.get(map, requestId), HashMap.remove(map, requestId)]);
 
     return {
       nextId: Ref.getAndUpdate(counter, (n) => n + 1),
@@ -54,46 +44,28 @@ export const PendingRequestsLive: Layer.Layer<PendingRequests> = Layer.effect(Pe
           return entry._tag === "Some" ? entry.value : undefined;
         }),
 
-      add: (
-        requestId: number,
-        verb: string,
-        url: string,
-        startedAt: number,
-        timeoutMs: number | undefined,
-      ) =>
-        Effect.gen(function* () {
-          const deferred = yield* Deferred.make<TransportResponse, TransportError>();
-          yield* Ref.update(
-            pending,
-            HashMap.set(requestId, { requestId, deferred, verb, url, startedAt, timeoutMs }),
-          );
-          return deferred;
-        }),
+      add: (request: PendingRequest) =>
+        Ref.update(pending, HashMap.set(request.requestId, request)),
 
       resolve: (requestId: number, response: TransportResponse) =>
         Effect.gen(function* () {
-          const map = yield* Ref.get(pending);
-          const entry = HashMap.get(map, requestId);
+          const entry = yield* take(requestId);
           if (entry._tag === "Some") {
-            yield* Ref.update(pending, HashMap.remove(requestId));
             yield* Deferred.succeed(entry.value.deferred, response);
           }
         }),
 
       reject: (requestId: number, error: TransportError) =>
         Effect.gen(function* () {
-          const map = yield* Ref.get(pending);
-          const entry = HashMap.get(map, requestId);
+          const entry = yield* take(requestId);
           if (entry._tag === "Some") {
-            yield* Ref.update(pending, HashMap.remove(requestId));
             yield* Deferred.fail(entry.value.deferred, error);
           }
         }),
 
       rejectAll: (error: TransportError) =>
         Effect.gen(function* () {
-          const map = yield* Ref.get(pending);
-          yield* Ref.set(pending, HashMap.empty());
+          const map = yield* Ref.getAndSet(pending, HashMap.empty());
           for (const [, entry] of map) {
             yield* Deferred.fail(entry.deferred, error);
           }
