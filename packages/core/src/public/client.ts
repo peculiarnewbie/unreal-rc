@@ -8,7 +8,7 @@ import {
   type FullLayer,
   type RuntimeConfig,
 } from "../internal/runtime.js";
-import { withRetry } from "../internal/retry.js";
+import { withRetry, type RetryConfig } from "../internal/retry.js";
 import {
   BatchBuilder,
   buildCallRequest,
@@ -236,6 +236,7 @@ const DEFAULT_RETRY_MAX_ATTEMPTS = 3;
 // ── Client ─────────────────────────────────────────────────────────────
 
 export class UnrealRC {
+  private readonly healthWatchers = new Set<HealthWatcher>();
   private readonly runtime: ManagedRuntime.ManagedRuntime<FullLayer, never>;
   private readonly validateResponses: boolean;
   private readonly defaultRetry: RetryOptions | undefined;
@@ -749,13 +750,9 @@ export class UnrealRC {
           lastSeen: new Date(),
         };
         currentStatus = nextStatus;
-
-        if (!previousHealthy) {
-          onChange?.(currentStatus);
-        }
       } else {
         const nextFailures = currentStatus.consecutiveFailures + 1;
-        const nextHealthy = nextFailures < unhealthyAfter;
+        const nextHealthy = previousHealthy && nextFailures < unhealthyAfter;
         const nextStatus: HealthStatus = {
           healthy: nextHealthy,
           latencyMs: undefined,
@@ -763,9 +760,13 @@ export class UnrealRC {
           lastSeen: currentStatus.lastSeen,
         };
         currentStatus = nextStatus;
+      }
 
-        if (previousHealthy && !nextHealthy) {
+      if (previousHealthy !== currentStatus.healthy) {
+        try {
           onChange?.(currentStatus);
+        } catch {
+          // Observers must not stop health polling.
         }
       }
 
@@ -781,16 +782,19 @@ export class UnrealRC {
       tick().catch(() => {});
     }, 0);
 
-    return {
+    const watcher: HealthWatcher = {
       status: () => currentStatus,
       dispose: () => {
         disposed = true;
+        this.healthWatchers.delete(watcher);
         if (timer !== undefined) {
           clearTimeout(timer);
           timer = undefined;
         }
       },
     };
+    this.healthWatchers.add(watcher);
+    return watcher;
   }
 
   async pendingRequests(): Promise<readonly PendingRequestInfo[]> {
@@ -857,6 +861,7 @@ export class UnrealRC {
   // ── Lifecycle ───────────────────────────────────────────────────────
 
   async dispose(): Promise<void> {
+    for (const watcher of this.healthWatchers) watcher.dispose();
     await this.runtime.runPromise(Transport.use((transport) => transport.dispose)).catch(() => {});
     await this.runtime.dispose();
   }
@@ -870,7 +875,7 @@ export class UnrealRC {
     responseSchema: Schema.Schema<T>,
     options?: RequestOptionsBase,
   ): Effect.Effect<SendResult<T>, TransportError, Transport> {
-    const retryConfig = this.resolveRetryConfig(options?.retry, verb as HttpVerb, url);
+    const retryConfig = this.resolveRetryConfig(options?.retry, verb as HttpVerb, url, body);
     const validateResponses = this.validateResponses;
     const transportName = this.transportName;
     const onRequestEffect = this._onRequestEffect;
@@ -1154,9 +1159,8 @@ export class UnrealRC {
     retry: RetryOptions | undefined,
     verb: HttpVerb,
     url: string,
-  ):
-    | { maxAttempts: number; baseDelayMs: number; shouldRetry?: (error: TransportError) => boolean }
-    | false {
+    body: unknown,
+  ): RetryConfig | false {
     if (retry === false) return false;
 
     const source = retry ?? this.defaultRetry;
@@ -1165,39 +1169,34 @@ export class UnrealRC {
     const policy = source === true ? {} : source;
     const maxAttempts = Math.max(1, Math.floor(policy.maxAttempts ?? DEFAULT_RETRY_MAX_ATTEMPTS));
     const rawDelay = policy.delayMs;
-    const baseDelayMs =
-      typeof rawDelay === "number"
-        ? rawDelay
-        : typeof rawDelay === "function"
-          ? rawDelay({
-              attempt: 1,
-              maxAttempts,
-              error: new TransportRequestError("init"),
-              transport: this.transportName,
-              verb,
-              url,
-            })
-          : 100;
-
+    const context = (error: TransportError, attempt: number): RetryContext => {
+      const publicError = toPublicError(error);
+      return {
+        attempt,
+        maxAttempts,
+        error: publicError,
+        transport: this.transportName,
+        verb,
+        url,
+        body,
+        statusCode: publicError.statusCode,
+        requestId: publicError.requestId,
+      };
+    };
     const userShouldRetry = policy.shouldRetry;
-    const transportName = this.transportName;
-    const shouldRetry = userShouldRetry
-      ? (error: TransportError) => {
-          const publicError = toPublicError(error);
-          return userShouldRetry({
-            attempt: 1,
-            maxAttempts,
-            error: publicError,
-            transport: transportName,
-            verb,
-            url,
-            statusCode: publicError.statusCode,
-            requestId: publicError.requestId,
-          });
-        }
-      : undefined;
-
-    return { maxAttempts, baseDelayMs, ...(shouldRetry ? { shouldRetry } : {}) };
+    return {
+      maxAttempts,
+      baseDelayMs: typeof rawDelay === "number" ? rawDelay : 100,
+      ...(typeof rawDelay === "function"
+        ? { delayMs: (error: TransportError, attempt: number) => rawDelay(context(error, attempt)) }
+        : {}),
+      ...(userShouldRetry
+        ? {
+            shouldRetry: (error: TransportError, attempt: number) =>
+              userShouldRetry(context(error, attempt)),
+          }
+        : {}),
+    };
   }
 
   // ── Raw response transport (hooks + no decode) ──────────────────────
@@ -1243,7 +1242,7 @@ export class UnrealRC {
     body: unknown,
     options?: RequestOptionsBase,
   ): Effect.Effect<TransportResponse, TransportError, Transport> {
-    const retryConfig = this.resolveRetryConfig(options?.retry, verb as HttpVerb, url);
+    const retryConfig = this.resolveRetryConfig(options?.retry, verb as HttpVerb, url, body);
     const transportName = this.transportName;
     const onRequestEffect = this._onRequestEffect;
     const onResponseEffect = this._onResponseEffect;

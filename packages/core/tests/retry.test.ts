@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, test } from "vitest";
-import { TransportRequestError, UnrealRC } from "../src/index.js";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { UnrealRC, type RetryContext } from "../src/index.js";
 
 // ── Fetch mock helpers ────────────────────────────────────────────────
 
@@ -64,6 +64,78 @@ const makeHttpClient = (responses: MockResponseEntry[], options: Record<string, 
 // ── Retry tests ──────────────────────────────────────────────────────
 
 describe("retry logic", () => {
+  test("retry callbacks receive each real failure and attempt", async () => {
+    const decisions: RetryContext[] = [];
+    const delays: RetryContext[] = [];
+    const { client, requests } = makeHttpClient(
+      [
+        { body: { error: "gateway" }, statusCode: 502 },
+        { body: { error: "busy" }, statusCode: 503 },
+        { body: { ReturnValue: 42 } },
+      ],
+      {
+        retry: {
+          maxAttempts: 3,
+          shouldRetry: (context: RetryContext) => {
+            decisions.push(context);
+            return true;
+          },
+          delayMs: (context: RetryContext) => {
+            delays.push(context);
+            return 0;
+          },
+        },
+      },
+    );
+    try {
+      await client.call({ objectPath: "/Game/Actor", functionName: "Ping" });
+      expect(requests).toHaveLength(3);
+      for (const contexts of [decisions, delays]) {
+        expect(contexts.map(({ attempt, statusCode }) => [attempt, statusCode])).toEqual([
+          [1, 502],
+          [2, 503],
+        ]);
+        expect(contexts[0]).toMatchObject({
+          maxAttempts: 3,
+          body: { objectPath: "/Game/Actor", functionName: "Ping" },
+          error: { kind: "http_status", statusCode: 502 },
+        });
+      }
+    } finally {
+      await client.dispose();
+    }
+  });
+
+  test("a successful request never invokes a retry delay callback", async () => {
+    const delayMs = vi.fn(() => 0);
+    const { client } = makeHttpClient([{ body: {} }], { retry: { delayMs } });
+    try {
+      await client.info();
+      expect(delayMs).not.toHaveBeenCalled();
+    } finally {
+      await client.dispose();
+    }
+  });
+
+  test("attempt-aware decisions can stop retries early", async () => {
+    const { client, requests } = makeHttpClient(
+      [{ statusCode: 503 }, { statusCode: 503 }, { body: {} }],
+      {
+        retry: {
+          maxAttempts: 4,
+          delayMs: 0,
+          shouldRetry: ({ attempt }: RetryContext) => attempt < 2,
+        },
+      },
+    );
+    try {
+      await expect(client.info()).rejects.toMatchObject({ statusCode: 503 });
+      expect(requests).toHaveLength(2);
+    } finally {
+      await client.dispose();
+    }
+  });
+
   test("retries 502 Bad Gateway and succeeds on next attempt", async () => {
     const { client, requests } = makeHttpClient(
       [

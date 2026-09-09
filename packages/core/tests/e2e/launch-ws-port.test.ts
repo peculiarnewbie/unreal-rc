@@ -19,7 +19,7 @@ launchWsPortTest(
       const wsStatus = await waitForRemoteControlWs(handle);
 
       expect(wsStatus.portReachable).toBe(true);
-      expect(wsStatus.endpointUrl).toStartWith("ws://");
+      expect(wsStatus.endpointUrl.startsWith("ws://")).toBe(true);
     } finally {
       await releaseFixture();
     }

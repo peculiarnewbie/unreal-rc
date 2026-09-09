@@ -17,28 +17,35 @@ export const defaultShouldRetry = (error: TransportError): boolean => {
   }
 };
 
+export interface RetryConfig {
+  readonly maxAttempts: number;
+  readonly baseDelayMs: number;
+  readonly delayMs?: ((error: TransportError, attempt: number) => number) | undefined;
+  readonly shouldRetry?: ((error: TransportError, attempt: number) => boolean) | undefined;
+}
+
 export const withRetry = <A, R>(
   effect: Effect.Effect<A, TransportError, R>,
-  options:
-    | {
-        maxAttempts: number;
-        baseDelayMs: number;
-        shouldRetry?: ((error: TransportError) => boolean) | undefined;
-      }
-    | false,
+  options: RetryConfig | false,
 ): Effect.Effect<A, TransportError, R> => {
   if (options === false || options.maxAttempts <= 1) {
     return effect;
   }
 
   const check = options.shouldRetry ?? defaultShouldRetry;
-  const schedule = Schedule.max([
-    Schedule.exponential(`${options.baseDelayMs} millis`, 2),
-    Schedule.recurs(options.maxAttempts - 1),
-  ]);
+  const attempts: Schedule.Schedule<number, TransportError> = Schedule.recurs(
+    options.maxAttempts - 1,
+  );
+  const schedule = attempts.pipe(
+    Schedule.while(({ input, attempt }) => Effect.sync(() => check(input, attempt))),
+    Schedule.modifyDelay(({ input, attempt }) =>
+      Effect.sync(() =>
+        options.delayMs
+          ? options.delayMs(input, attempt)
+          : options.baseDelayMs * 2 ** (attempt - 1),
+      ),
+    ),
+  );
 
-  return Effect.retry(effect, {
-    schedule,
-    while: check,
-  });
+  return Effect.retry(effect, { schedule });
 };

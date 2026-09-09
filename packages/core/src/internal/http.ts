@@ -2,6 +2,7 @@ import { Effect, Layer, Schema } from "effect";
 import {
   ConnectError,
   DecodeError,
+  DisconnectError,
   HttpStatusError,
   TimeoutError,
   type TransportError,
@@ -29,7 +30,7 @@ export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Lay
     options.baseUrl?.replace(/\/$/, "") ??
     `${options.secure ? "https" : "http"}://${options.host ?? DEFAULT_HOST}:${options.port ?? DEFAULT_PORT}`;
   const defaultTimeoutMs = options.requestTimeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const headers = { ...(options.headers ?? {}) };
+  const headers = { ...options.headers };
   const passphrase = options.passphrase ?? DEFAULT_HTTP_PASSPHRASE;
   if (!hasHeaderIgnoreCase(headers, "Passphrase")) {
     headers.Passphrase = passphrase;
@@ -42,125 +43,141 @@ export const HttpTransportLive = (options: HttpTransportOptions = {}): Layer.Lay
     readonly timeoutMs: number;
   }
 
-  let nextRequestId = 1;
-  const activeRequests = new Map<number, ActiveHttpRequest>();
+  return Layer.effect(Transport)(
+    Effect.gen(function* () {
+      let nextRequestId = 1;
+      let disposed = false;
+      const activeRequests = new Map<number, ActiveHttpRequest>();
 
-  return Layer.succeed(Transport)({
-    name: "http",
+      const transport = {
+        name: "http",
 
-    request: (req: TransportRequest): Effect.Effect<TransportResponse, TransportError> =>
-      Effect.callback<TransportResponse, TransportError>((resume) => {
-        const controller = new AbortController();
-        const timeoutMs = req.timeoutMs ?? defaultTimeoutMs;
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        const requestId = nextRequestId++;
-
-        activeRequests.set(requestId, {
-          controller,
-          verb: req.verb,
-          url: req.url,
-          startedAt: Date.now(),
-          timeoutMs,
-        });
-
-        if (timeoutMs > 0) {
-          timer = setTimeout(() => {
-            controller.abort(TIMEOUT_ABORT_REASON);
-          }, timeoutMs);
-        }
-
-        const targetUrl = new URL(req.url, baseUrl).toString();
-        const reqHeaders: Record<string, string> = { ...headers };
-
-        let requestBody: string | undefined;
-        if (req.body !== undefined) {
-          requestBody = JSON.stringify(req.body);
-          if (!reqHeaders["content-type"]) {
-            reqHeaders["content-type"] = "application/json";
-          }
-        }
-
-        const requestInit: RequestInit = {
-          method: req.verb,
-          headers: reqHeaders,
-          signal: controller.signal,
-        };
-
-        if (requestBody !== undefined) {
-          requestInit.body = requestBody;
-        }
-
-        const run = async (): Promise<TransportResponse> => {
-          try {
-            const response = await fetch(targetUrl, requestInit);
-            const payload = await parsePayload(response, req);
-
-            if (!response.ok) {
-              throw new HttpStatusError({
-                message: `HTTP request failed with status ${response.status}`,
-                statusCode: response.status,
-                transport: "http",
-                verb: req.verb,
-                url: req.url,
-                details: payload,
-              });
+        request: (req: TransportRequest): Effect.Effect<TransportResponse, TransportError> =>
+          Effect.callback<TransportResponse, TransportError>((resume) => {
+            if (disposed) {
+              resume(
+                Effect.fail(
+                  new DisconnectError({
+                    message: "Cannot send request on a disposed transport",
+                    transport: "http",
+                  }),
+                ),
+              );
+              return;
             }
+            const controller = new AbortController();
+            const timeoutMs = req.timeoutMs ?? defaultTimeoutMs;
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const requestId = nextRequestId++;
 
-            return { body: payload, statusCode: response.status };
-          } catch (error) {
-            if (error instanceof HttpStatusError || error instanceof DecodeError) {
-              throw error;
-            }
-
-            if (controller.signal.aborted) {
-              const abortedByTimeout = controller.signal.reason === TIMEOUT_ABORT_REASON;
-              if (abortedByTimeout) {
-                throw new TimeoutError({
-                  message: `HTTP request timed out after ${timeoutMs}ms`,
-                  transport: "http",
-                  verb: req.verb,
-                  url: req.url,
-                });
-              }
-            }
-
-            throw new ConnectError({
-              message: "HTTP request failed",
-              transport: "http",
-              cause: error,
+            activeRequests.set(requestId, {
+              controller,
+              verb: req.verb,
+              url: req.url,
+              startedAt: Date.now(),
+              timeoutMs,
             });
-          } finally {
-            if (timer) clearTimeout(timer);
-            activeRequests.delete(requestId);
-          }
-        };
 
-        run().then(
-          (response) => resume(Effect.succeed(response)),
-          (error) => resume(Effect.fail(error as TransportError)),
-        );
-      }),
+            if (timeoutMs > 0) {
+              timer = setTimeout(() => {
+                controller.abort(TIMEOUT_ABORT_REASON);
+              }, timeoutMs);
+            }
 
-    pendingRequests: Effect.sync((): ReadonlyArray<PendingRequestInfo> => {
-      const now = Date.now();
-      return [...activeRequests.values()].map(
-        (e): PendingRequestInfo => ({
-          requestId: undefined,
-          verb: e.verb,
-          url: e.url,
-          elapsedMs: now - e.startedAt,
-          timeoutMs: e.timeoutMs,
+            const run = async (): Promise<TransportResponse> => {
+              try {
+                const targetUrl = new URL(req.url, baseUrl).toString();
+                const reqHeaders: Record<string, string> = { ...headers };
+                const requestBody = req.body === undefined ? undefined : JSON.stringify(req.body);
+                if (requestBody !== undefined && !hasHeaderIgnoreCase(reqHeaders, "content-type")) {
+                  reqHeaders["content-type"] = "application/json";
+                }
+                const requestInit: RequestInit = {
+                  method: req.verb,
+                  headers: reqHeaders,
+                  signal: controller.signal,
+                  ...(requestBody !== undefined ? { body: requestBody } : {}),
+                };
+                const response = await fetch(targetUrl, requestInit);
+                const payload = await parsePayload(response, req);
+
+                if (!response.ok) {
+                  throw new HttpStatusError({
+                    message: `HTTP request failed with status ${response.status}`,
+                    statusCode: response.status,
+                    transport: "http",
+                    verb: req.verb,
+                    url: req.url,
+                    details: payload,
+                  });
+                }
+
+                return { body: payload, statusCode: response.status };
+              } catch (error) {
+                if (error instanceof HttpStatusError || error instanceof DecodeError) {
+                  throw error;
+                }
+
+                if (controller.signal.aborted) {
+                  const abortedByTimeout = controller.signal.reason === TIMEOUT_ABORT_REASON;
+                  if (abortedByTimeout) {
+                    throw new TimeoutError({
+                      message: `HTTP request timed out after ${timeoutMs}ms`,
+                      transport: "http",
+                      verb: req.verb,
+                      url: req.url,
+                    });
+                  }
+                }
+
+                throw new ConnectError({
+                  message: "HTTP request failed",
+                  transport: "http",
+                  cause: error,
+                });
+              } finally {
+                if (timer) clearTimeout(timer);
+                activeRequests.delete(requestId);
+              }
+            };
+
+            run().then(
+              (response) => resume(Effect.succeed(response)),
+              (error) => resume(Effect.fail(error as TransportError)),
+            );
+
+            return Effect.sync(() => {
+              if (timer !== undefined) clearTimeout(timer);
+              activeRequests.delete(requestId);
+              controller.abort("interrupt");
+            });
+          }),
+
+        pendingRequests: Effect.sync((): ReadonlyArray<PendingRequestInfo> => {
+          const now = Date.now();
+          return [...activeRequests.values()].map(
+            (e): PendingRequestInfo => ({
+              requestId: undefined,
+              verb: e.verb,
+              url: e.url,
+              elapsedMs: now - e.startedAt,
+              timeoutMs: e.timeoutMs,
+            }),
+          );
         }),
-      );
-    }),
 
-    dispose: Effect.sync(() => {
-      for (const { controller } of activeRequests.values()) {
-        controller.abort("dispose");
-      }
-      activeRequests.clear();
+        dispose: Effect.sync(() => {
+          disposed = true;
+          for (const { controller } of activeRequests.values()) {
+            controller.abort("dispose");
+          }
+          activeRequests.clear();
+        }),
+      };
+      yield* Effect.addFinalizer(() => transport.dispose);
+      return transport;
     }),
-  });
+  );
 };
 
 const hasHeaderIgnoreCase = (headers: Record<string, string>, name: string): boolean => {
