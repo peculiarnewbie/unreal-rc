@@ -1,4 +1,4 @@
-import { Deferred, Effect, Fiber, ManagedRuntime } from "effect";
+import { Clock, Deferred, Effect, Fiber, ManagedRuntime } from "effect";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { WebSocketTransportLive, type WebSocketTransportOptions } from "../src/internal/ws.js";
 import { Transport } from "../src/internal/transport.js";
@@ -87,19 +87,46 @@ describe("WebSocket lifecycle", () => {
   });
 
   test("successful requests cancel their deadline while the calling fiber keeps running", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const { transport, socket } = await setup();
-    socket.replyOnSend = true;
     socket.open();
     const completed = Effect.runSync(Deferred.make<void>());
+    const scheduled = Effect.runSync(Deferred.make<void>());
+    const liveClock = Effect.runSync(Clock.Clock);
+    let pendingSleeps = 0;
+    const clock: Clock.Clock = {
+      currentTimeMillis: liveClock.currentTimeMillis,
+      currentTimeNanos: liveClock.currentTimeNanos,
+      currentTimeMillisUnsafe: () => liveClock.currentTimeMillisUnsafe(),
+      currentTimeNanosUnsafe: () => liveClock.currentTimeNanosUnsafe(),
+      sleep: () =>
+        Effect.gen(function* () {
+          pendingSleeps++;
+          yield* Deferred.succeed(scheduled, undefined);
+          yield* Effect.never;
+        }).pipe(
+          Effect.ensuring(
+            Effect.sync(() => {
+              pendingSleeps--;
+            }),
+          ),
+        ),
+    };
     const fiber = Effect.runFork(
       transport
         .request({ verb: "GET", url: "/fast", timeoutMs: 15000 })
-        .pipe(Effect.andThen(Deferred.succeed(completed, undefined)), Effect.andThen(Effect.never)),
+        .pipe(
+          Effect.provideService(Clock.Clock, clock),
+          Effect.andThen(Deferred.succeed(completed, undefined)),
+          Effect.andThen(Effect.never),
+        ),
     );
     try {
+      await Effect.runPromise(Deferred.await(scheduled));
+      await vi.waitFor(() => expect(socket.sent).toHaveLength(1));
+      expect(pendingSleeps).toBe(1);
+      socket.message({ RequestId: 1, ResponseCode: 200, ResponseBody: null });
       await Effect.runPromise(Deferred.await(completed));
-      expect(vi.getTimerCount()).toBe(0);
+      expect(pendingSleeps).toBe(0);
     } finally {
       await Effect.runPromise(Fiber.interrupt(fiber));
     }
